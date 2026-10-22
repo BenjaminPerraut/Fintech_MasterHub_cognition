@@ -31,6 +31,7 @@ Open http://localhost:8000 and pick a seeded account on the stub SSO page.
 | PII masked by default, audited reveal and export | `app/engine/routes.py` |
 | Refunds: four-eyes only at or above €500, payout by Ops Lead | `app/manifests/refunds.yaml` |
 | Feature flags: final votes, quorum, four-eyes rollout, instant kill switch | `app/manifests/flags.yaml`, `service.vote` |
+| Fraud payments + transfer flags: visible rules, append-only ledger, four-eyes closure | `app/rules/`, `app/manifests/fraud.yaml`, `transfers.yaml` |
 
 ## Seeded accounts
 

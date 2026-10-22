@@ -1,0 +1,80 @@
+# Fraud payment alerts, raised by app/rules (velocity bursts, unusually high amounts).
+app: fraud
+title: Fraud Payments
+icon: "⚠"
+order: 40
+description: Alerts from the payment rules (velocity within 60 seconds, unusually high amounts). Closing an alert as false positive or confirming fraud needs a second person.
+id_prefix: FRD
+title_field: customer_name
+priority_field: alert_score
+initial: new
+
+permissions:
+  view: [ops_lead, kyc_analyst, support]       # support sees alerts masked, read-only
+  comment: [ops_lead, kyc_analyst]
+  reveal_pii: [ops_lead, kyc_analyst]
+  export: [ops_lead]
+  # create: nobody. Alerts are only created by the rule engine (app/rules).
+
+states:
+  new:            {label: New alert, color: blue}
+  investigating:  {label: Investigating, color: purple}
+  escalated:      {label: Escalated, color: red}
+  confirmed:      {label: Confirmed fraud, color: red, terminal: true}
+  false_positive: {label: False positive, color: gray, terminal: true}
+
+transitions:
+  - {name: investigate, label: Start investigation, from: new, to: investigating, roles: [ops_lead, kyc_analyst]}
+  - {name: escalate, label: Escalate to Ops Lead, from: investigating, to: escalated, roles: [kyc_analyst], require_comment: true, style: danger}
+  - name: confirm_fraud
+    label: Confirm fraud & freeze account
+    from: [investigating, escalated]
+    to: confirmed
+    roles: [ops_lead, kyc_analyst]
+    four_eyes: true
+    approve_roles: [ops_lead]
+    set: {account_action: frozen}
+    style: danger
+  - name: mark_false_positive
+    label: Close as false positive
+    from: [investigating, escalated]
+    to: false_positive
+    roles: [ops_lead, kyc_analyst]
+    four_eyes: true
+    approve_roles: [ops_lead]
+
+quick_filters:
+  - {label: Velocity bursts (60s), params: {f_rule: velocity_burst, open: "1"}}
+  - {label: High amounts, params: {f_rule: high_amount, open: "1"}}
+  - {label: "Score ≥ 70", params: {risk_min: "70", open: "1"}}
+  - {label: Awaiting 2nd approval, params: {pending: "1"}}
+
+fields:
+  - name: rule
+    label: Rule
+    type: enum
+    options: [velocity_burst, high_amount]
+    colors: {velocity_burst: amber, high_amount: red}
+    section: Alert
+    list: true
+    filter: true
+  - {name: customer_name, label: Customer, section: Alert, list: true}
+  - {name: customer_id, label: Customer ID, section: Alert}
+  - {name: description, label: Why it fired, type: longtext, section: Alert}
+  - {name: alert_score, label: Alert score, type: score, section: Alert, list: true}
+  - {name: amount_total, label: Amount (EUR), type: money, section: Alert, list: true, filter: true}
+  - {name: txn_count, label: Transactions, type: number, section: Alert, list: true, filter: true}
+  - {name: detected_at, label: Detected, type: date, section: Alert, filter: true, default: "@today"}
+  - {name: window_start, label: First event (UTC), section: Evidence}
+  - {name: window_end, label: Last event (UTC), section: Evidence}
+  - {name: transactions, label: Ledger events, type: longtext, section: Evidence}
+  - {name: rule_key, label: Rule hit key, section: Evidence, help: Stable key so a rescan never duplicates an alert.}
+  - {name: counterparty, label: Merchant(s), section: Evidence, filter: true}
+  - {name: country, label: Merchant country, section: Evidence}
+  - name: account_action
+    label: Account action
+    type: enum
+    options: [none, frozen]
+    colors: {none: gray, frozen: red}
+    section: Alert
+    default: none

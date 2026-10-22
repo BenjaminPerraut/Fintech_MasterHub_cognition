@@ -19,6 +19,7 @@ from .engine import routes as engine_routes
 from .engine import store as _store  # noqa: F401  (registers item tables)
 from .engine.manifest import load_manifests
 from .routes import audit as audit_routes
+from .rules import routes as rules_routes
 from .routes import auth as auth_routes
 from .routes import hub as hub_routes
 from .security import SecurityHeadersMiddleware, verify_csrf
@@ -36,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for m in app.state.manifests.values():
         PERMISSIONS[f"app:{m.key}:view"] = frozenset(Role(r) for r in m.view_roles)
         register_nav(NavItem(m.key, m.title, f"/apps/{m.key}", f"app:{m.key}:view", m.icon, "Apps"))
+    register_nav(NavItem("rules", "Detection rules", "/rules", "rules:view", "⚙", "Apps"))
 
     conn = connect(settings.db_path)
     try:
@@ -53,6 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_routes.router)
     app.include_router(hub_routes.router)
     app.include_router(audit_routes.router)
+    app.include_router(rules_routes.router)
     app.include_router(engine_routes.router)
 
     @app.exception_handler(LoginRequired)

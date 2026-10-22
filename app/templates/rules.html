@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Detection rules{% endblock %}
+{% block content %}
+{% include "_flash.html" %}
+<div class="page-head">
+  <div><h1>⚙ Detection rules</h1><p class="muted">Static, visible rules over the payments and transfers ledger ({{ counts.payments }} payments · {{ counts.transfers }} transfers, sample data). Each hit opens an alert in <a href="/apps/fraud">Fraud payments</a> or <a href="/apps/transfers">Transfer flags</a>.</p></div>
+  {% if can_run %}<div class="actions"><form method="post" action="/rules/scan">{{ csrf_input(request) }}<button class="btn btn-primary">Run scan now (audited)</button></form></div>{% endif %}
+</div>
+<div class="detail-grid">
+<div>
+  <div class="card"><h3>Rules in force <span class="muted small">app/rules/rules.yaml</span></h3><pre class="code">{{ config }}</pre></div>
+  {% if can_run %}
+  <div class="card"><h3>Simulate traffic (sample data)</h3><p class="small muted">Injects fictional ledger events, then runs a scan. Logged as <span class="mono">rules.simulated</span>.</p>
+    <form method="post" action="/rules/simulate">{{ csrf_input(request) }}<div class="actions">{% for k, label in sims.items() %}<button class="btn btn-sm" name="kind" value="{{ k }}">{{ label }}</button>{% endfor %}</div></form>
+  </div>
+  {% endif %}
+</div>
+<div>
+  <div class="card table-card"><h3>Alerts by rule</h3>
+    <table class="table"><thead><tr><th>Queue</th><th>Rule</th><th>Total</th><th>Open</th></tr></thead><tbody>
+    {% for r in by_rule %}<tr><td><a href="/apps/{{ r.app }}">{{ r.app }}</a></td><td><a href="/apps/{{ r.app }}?f_rule={{ r.rule }}">{{ r.rule|replace('_',' ') }}</a></td><td>{{ r.n }}</td><td>{{ r.open }}</td></tr>{% else %}<tr><td colspan="4" class="muted">No alerts yet.</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="card"><h3>Recent scans</h3><ul class="timeline">
+    {% for s in scans %}<li><span class="action-tag action-rules">{{ s.action }}</span><div class="t-meta">{{ s.actor }} · {{ s.ts[:19].replace('T',' ') }}</div><div class="small">{% if s.details.created is defined %}created {{ s.details.created }} · rules sha256 <span class="mono">{{ s.details.rules_sha256[:12] }}</span>{% else %}{{ s.details.kind }} for {{ s.details.customer_id }}{% endif %}</div></li>{% else %}<li class="muted small">No scans yet.</li>{% endfor %}
+  </ul></div>
+</div>
+</div>
+{% endblock %}

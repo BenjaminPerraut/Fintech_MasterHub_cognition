@@ -1,0 +1,85 @@
+# Transfer alerts, raised by app/rules (bursts of transfers, very high amounts, new high-risk payees).
+app: transfers
+title: Transfer Flags
+icon: "⇄"
+order: 50
+description: Alerts from the transfer rules (bursts within 10 minutes, very high amounts, new payee in a high-risk country). Holding is instant; releasing or blocking needs a second person.
+id_prefix: TRX
+title_field: customer_name
+priority_field: alert_score
+initial: new
+
+permissions:
+  view: [ops_lead, kyc_analyst, support]       # support sees alerts masked, read-only
+  comment: [ops_lead, kyc_analyst]
+  reveal_pii: [ops_lead, kyc_analyst]
+  export: [ops_lead]
+  # create: nobody. Alerts are only created by the rule engine (app/rules).
+
+states:
+  new:           {label: New alert, color: blue}
+  investigating: {label: Investigating, color: purple}
+  on_hold:       {label: Transfer on hold, color: amber}
+  released:      {label: Released, color: green, terminal: true}
+  blocked:       {label: Blocked & returned, color: red, terminal: true}
+
+transitions:
+  - {name: investigate, label: Start investigation, from: new, to: investigating, roles: [ops_lead, kyc_analyst]}
+  - {name: hold, label: Hold transfer, from: [new, investigating], to: on_hold, roles: [ops_lead, kyc_analyst], require_comment: true, set: {transfer_status: held}, style: warn}
+  - name: release
+    label: Release transfer
+    from: [investigating, on_hold]
+    to: released
+    roles: [ops_lead, kyc_analyst]
+    four_eyes: true
+    approve_roles: [ops_lead]
+    set: {transfer_status: released}
+    style: ok
+  - name: block
+    label: Block & return funds
+    from: [investigating, on_hold]
+    to: blocked
+    roles: [ops_lead, kyc_analyst]
+    four_eyes: true
+    approve_roles: [ops_lead]
+    set: {transfer_status: blocked}
+    style: danger
+
+quick_filters:
+  - {label: Bursts (10 min), params: {f_rule: transfer_burst, open: "1"}}
+  - {label: "Very high amounts", params: {f_rule: high_amount, open: "1"}}
+  - {label: New high-risk payees, params: {f_rule: new_beneficiary_high_risk}}
+  - {label: On hold, params: {state: on_hold}}
+  - {label: Awaiting 2nd approval, params: {pending: "1"}}
+
+fields:
+  - name: rule
+    label: Rule
+    type: enum
+    options: [transfer_burst, high_amount, new_beneficiary_high_risk]
+    colors: {transfer_burst: amber, high_amount: red, new_beneficiary_high_risk: purple}
+    section: Alert
+    list: true
+    filter: true
+  - {name: customer_name, label: Customer, section: Alert, list: true}
+  - {name: customer_id, label: Customer ID, section: Alert}
+  - {name: description, label: Why it fired, type: longtext, section: Alert}
+  - {name: alert_score, label: Alert score, type: score, section: Alert, list: true}
+  - {name: amount_total, label: Amount (EUR), type: money, section: Alert, list: true, filter: true}
+  - {name: txn_count, label: Transactions, type: number, section: Alert, list: true, filter: true}
+  - {name: detected_at, label: Detected, type: date, section: Alert, filter: true, default: "@today"}
+  - {name: window_start, label: First event (UTC), section: Evidence}
+  - {name: window_end, label: Last event (UTC), section: Evidence}
+  - {name: transactions, label: Ledger events, type: longtext, section: Evidence}
+  - {name: rule_key, label: Rule hit key, section: Evidence, help: Stable key so a rescan never duplicates an alert.}
+  - {name: counterparty, label: Payee(s), section: Evidence, filter: true}
+  - {name: country, label: Payee country, type: enum, options: [ES, FR, DE, GB, IT, PT, NL, LT, IE, BE, RU, IR, KP, SY, AE, NG], section: Evidence, filter: true}
+  - {name: beneficiary_iban, label: Payee IBAN, pii: true, section: Evidence}
+  - name: transfer_status
+    label: Transfer status
+    type: enum
+    options: [pending, held, released, blocked]
+    colors: {pending: gray, held: amber, released: green, blocked: red}
+    section: Alert
+    list: true
+    default: pending

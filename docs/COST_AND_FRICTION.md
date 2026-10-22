@@ -10,7 +10,7 @@ the session**; copy them from the Devin Session Insights page into the table bel
 |-------|----|-------------------------|------------------------------|-------|
 | 0. Plan | – | 20:56 → 20:58 | _fill in_ | Repo was empty; Python 3.10, no Node → server-rendered stack |
 | 1. Foundation | [#1](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/1) | 20:58 → 21:01 | _fill in_ | SSO stub, RBAC, hash-chained audit, triggers, security headers, 19 tests |
-| 2. Queue engine + KYC | #2 | 21:01 → 21:09 | _fill in_ | YAML manifest engine, four-eyes (service + DB trigger), record hashes, PII masking/reveal, export, 48 KYC cases, 41 tests total |
+| 2. Queue engine + KYC | #2 | 21:01 → 21:04 | _fill in_ | YAML manifest engine, four-eyes (service + DB trigger), record hashes, PII masking/reveal, export, 48 KYC cases, 41 tests total |
 
 ## Corrections, steering, rewrites
 

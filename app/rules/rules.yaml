@@ -1,0 +1,15 @@
+# Detection rules for the Fraud and Transfer alert queues.
+# Plain, visible thresholds: no hidden scoring. The SHA-256 of this file is stamped on every scan audit event.
+payments:
+  velocity: {min_count: 3, window_seconds: 60}          # 3+ payments by one customer within 60 seconds
+  high_amount:
+    absolute_eur: 5000                                  # any single payment >= EUR 5,000
+    multiple_of_median: 10                              # or >= 10x the customer's median payment...
+    min_amount_eur: 1000                                # ...and at least EUR 1,000
+    min_history: 5                                      # median needs 5+ earlier payments
+transfers:
+  burst: {min_count: 3, window_seconds: 600}            # 3+ outgoing transfers within 10 minutes
+  high_amount: {absolute_eur: 10000}                    # any single transfer >= EUR 10,000
+  new_beneficiary:                                      # first transfer to a new payee in a high-risk country
+    min_amount_eur: 3000
+    high_risk_countries: [RU, IR, KP, SY, AE, NG]

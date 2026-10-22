@@ -40,6 +40,8 @@ PERMISSIONS: dict[str, frozenset[Role]] = {
     "audit:read": frozenset({Role.ADMIN, Role.OPS_LEAD}),
     "audit:verify": frozenset({Role.ADMIN, Role.OPS_LEAD, Role.ENGINEER}),
     "users:read": frozenset({Role.ADMIN}),
+    "rules:view": frozenset({Role.OPS_LEAD, Role.KYC_ANALYST, Role.ENGINEER, Role.ADMIN}),
+    "rules:run": frozenset({Role.OPS_LEAD}),
 }
 
 

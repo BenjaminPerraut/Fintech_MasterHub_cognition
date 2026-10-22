@@ -11,7 +11,8 @@ the session**; copy them from the Devin Session Insights page into the table bel
 | 0. Plan | – | 20:56 → 20:58 | _fill in_ | Repo was empty; Python 3.10, no Node → server-rendered stack |
 | 1. Foundation | [#1](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/1) | 20:58 → 21:01 | _fill in_ | SSO stub, RBAC, hash-chained audit, triggers, security headers, 19 tests |
 | 2. Queue engine + KYC | [#2](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/2) | 21:01 → 21:04 | _fill in_ | YAML manifest engine, four-eyes (service + DB trigger), record hashes, PII masking/reveal, export, 48 KYC cases, 41 tests total |
-| 3. Refunds + Feature flags | #3 | 21:04 → see PR | _fill in_ | Conditional four-eyes (≥ €500), payout step, voting with quorum, rollout via four-eyes, kill switch, 63 refunds + 14 flags, 60 tests total |
+| 3. Refunds + Feature flags | [#3](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/3) | 21:04 → 21:06 | _fill in_ | Conditional four-eyes (≥ €500), payout step, voting with quorum, rollout via four-eyes, kill switch, 63 refunds + 14 flags, 60 tests total |
+| 4. Fraud payments + Transfer flags | #4 | 21:06 → see PR | _fill in_ | Rules engine over append-only ledger, 2 alert queues, four-eyes closure, Ops Lead scan/simulate, 73 tests total |
 
 ## Corrections, steering, rewrites
 
@@ -25,6 +26,8 @@ the session**; copy them from the Devin Session Insights page into the table bel
 | 6 | 2 | Role check ran after comment validation, so an unauthorised user got a 400 instead of an audited 403 | Devin (self-review) | Moved the role check first |
 | 7 | 2 | Seeded "closed" relationships could end before they were submitted | Devin (self-review) | Clamp submitted date before relationship end |
 | 8 | 3 | Test asserted pretty-printed JSON, but audit details are canonical (compact) JSON | Devin (test run) | Assert on parsed JSON |
+| 9 | 4 | "Relative" high-amount rule (10x median) alone would flag ordinary €300 purchases | Devin (design, before code) | Added `min_amount_eur: 1000` floor to the rule |
+| 10 | 4 | Considered a separate `rule_hits` table for dedupe; its insert couldn't share the alert's transaction | Devin (design) | Simplified: `rule_key` stored on the alert itself (D-029) |
 
 ## Places Devin got stuck / needed steering
 
@@ -42,4 +45,5 @@ See also `docs/DECISIONS.md`.
 - Field-level encryption of PII → masking + audited reveal only (D-016).
 - Break-glass access for engineers → not built (D-019).
 - Real payout to a PSP → state change only (D-026).
+- Streaming detection, ML scoring, device/IP signals → batch static rules (D-027, D-028).
 - Gradual rollout percentages other than 10/100 and flag evaluation SDK → not built (D-024).

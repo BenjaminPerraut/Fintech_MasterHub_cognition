@@ -104,3 +104,8 @@ def test_expired_sessions_are_pruned_on_login(app, client):
     login(client, "u-1003")
     assert conn.execute("SELECT COUNT(*) FROM sessions WHERE id = 'old'").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 1
+
+
+def test_referrer_policy_keeps_origin_on_form_posts(client):
+    # "no-referrer" makes browsers send Origin: null on POST forms, which proxies reject ("bad origin").
+    assert client.get("/login").headers["referrer-policy"] == "same-origin"

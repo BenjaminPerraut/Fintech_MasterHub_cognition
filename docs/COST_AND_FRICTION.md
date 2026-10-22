@@ -34,6 +34,10 @@ the number least worth trusting: use the **ACUs from Session Insights** as the r
 | 8 | 3 | Test asserted pretty-printed JSON, but audit details are canonical (compact) JSON | Devin (test run) | Assert on parsed JSON |
 | 9 | 4 | "Relative" high-amount rule (10x median) alone would flag ordinary €300 purchases | Devin (design, before code) | Added `min_amount_eur: 1000` floor to the rule |
 | 10 | 4 | Considered a separate `rule_hits` table for dedupe; its insert couldn't share the alert's transaction | Devin (design) | Simplified: `rule_key` stored on the alert itself (D-029) |
+| 13 | 6 | Devin Review found 4 issues in my #6 fixes: refunds created before #6 skipped the creator check, Ops Leads were asked to approve refunds they had logged themselves, the creator lost the reject button, the sessions table grew forever | Devin Review, confirmed by Devin, fixed after you approved | Fixed in #6 before merge (91 tests) |
+| 14 | post-merge | **Live preview: account names invisible on the sign-in page.** On iPad Safari in dark mode, the browser's default button text color was white, on a white card | You (screenshot) | Explicit text color on account buttons + `color-scheme: light` |
+| 15 | post-merge | **Live preview: preview link didn't open (ERR_NAME_NOT_RESOLVED).** The app and the preview host were fine (public DNS resolves, proxy answers 401 until you sign in). Your network/VPN couldn't resolve the preview hostname | You (screenshot) | No code change. Workaround: Desktop tab, or VPN off / Devin web app preview chip |
+| 16 | post-merge | **Live preview: "bad origin" after clicking a user.** Every test passed because they post to the app directly. The preview goes through a proxy that checks the `Origin` header on POSTs. My `Referrer-Policy: no-referrer` makes browsers send `Origin: null` on form submissions, so the proxy refused sign-in before it reached the app. Reproduced in Chrome: `no-referrer` → `Origin: null`, `same-origin` → real origin | You (screenshot); root cause found by Devin | `Referrer-Policy: same-origin` (D-041) + regression test (92 tests) |
 | 12 | 6 | Post-build security review (requested by you) found 2 High + 5 Medium issues in my own code: stub login default, refund self-approval to a typed IBAN, unrevocable sessions, simulation/seeding not sandbox-gated, ephemeral key per worker, 500s on bad input | Devin (review), 1 also flagged by Devin Review | Fixed in #6; Low findings left in the review report |
 | 11 | 5 | Desk test assumed engineer Erin still had flags to vote on, but the seed has her voting on (or authoring) all of them | Devin (test run) | Asserted the vote prompt for the admin instead; the seed was right, the test was wrong |
 
@@ -48,6 +52,8 @@ Honest friction points on Devin's side:
   test client (all HTTP 200, no template errors). A human or the testing agent still hasn't clicked through the UI.
 - **Stacked PRs:** each PR is based on the previous phase's branch. Merge them in order (#1 → #5) and retarget each one to
   `main` after its parent merges.
+
+**Lesson from 14 to 16:** green tests and a localhost check aren't enough. The demo has to be checked through the same path the user takes: the preview proxy, their browser (iPad Safari, dark mode) and their network. Automated tests and the recorded demo all ran on the VM, so none of them could catch these issues.
 
 ## Features cut or simplified under the 2-hour limit
 

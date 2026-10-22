@@ -4,14 +4,25 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, Request
 
-from ..audit import verify_chain
+from ..audit import VerifyResult, verify_chain
 from ..db import transaction
 from ..deps import User, audit, get_db, require_perm
+from ..engine.store import verify_records
 from ..web import render
 
 router = APIRouter(prefix="/audit")
 
 PAGE_SIZE = 50
+
+
+def full_verify(db: sqlite3.Connection) -> VerifyResult:
+    """Chain integrity + every live record still matches its last audited snapshot."""
+    result = verify_chain(db)
+    result.record_issues = verify_records(db)
+    if result.record_issues and result.ok:
+        result.ok = False
+        result.reason = f"{len(result.record_issues)} record(s) changed outside the audited workflow"
+    return result
 
 
 @router.get("")
@@ -44,7 +55,7 @@ def audit_log(request: Request, actor: str = "", action: str = "", entity_type: 
 @router.get("/verify")
 def audit_verify(request: Request, user: User = Depends(require_perm("audit:verify")),
                  db: sqlite3.Connection = Depends(get_db)):
-    result = verify_chain(db)
+    result = full_verify(db)
     with transaction(db):
         audit(db, request, user, "audit.verified",
               details={"ok": result.ok, "count": result.count, "head": result.head_hash,

@@ -25,6 +25,10 @@ Open http://localhost:8000 and pick a seeded account on the stub SSO page.
 | Server-side guard on every protected route | `require_perm` / `require_role` in `app/deps.py` |
 | Append-only, hash-chained audit log + triggers | `app/audit.py`, `app/db.py`, `/audit/verify` |
 | CSRF, CSP, no-store, no API docs exposed | `app/security.py`, `app/main.py` |
+| YAML queue engine (fields, states, transitions, roles) | `app/manifests/*.yaml`, `app/engine/` |
+| Four-eyes (service + DB trigger + tests) | `app/engine/service.py`, `app/engine/store.py`, `tests/test_engine.py` |
+| Record tamper detection (content hash vs audit) | `store.verify_records`, `/audit/verify` |
+| PII masked by default, audited reveal and export | `app/engine/routes.py` |
 
 ## Seeded accounts
 

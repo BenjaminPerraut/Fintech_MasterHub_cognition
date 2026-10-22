@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ m.title }}{% endblock %}
+{% block content %}
+{% include "_flash.html" %}
+<div class="page-head">
+  <div><h1>{{ m.icon }} {{ m.title }}</h1><p class="muted">{{ m.description }}</p></div>
+  <div class="actions">
+    {% if can_export %}<a class="btn" href="/apps/{{ m.key }}/export.csv?{{ base_q|urlencode }}">Export CSV (masked)</a>{% endif %}
+    {% if can_create %}<a class="btn btn-primary" href="/apps/{{ m.key }}/new">+ New</a>{% endif %}
+  </div>
+</div>
+<div class="state-chips">
+  <a class="chip {% if not params.state and not params.open %}active{% endif %}" href="/apps/{{ m.key }}">All <b>{{ counts.values()|sum }}</b></a>
+  <a class="chip {% if params.open == '1' %}active{% endif %}" href="?open=1">Open <b>{{ m.open_states|map('extract', counts)|select|sum }}</b></a>
+  {% for s in m.states.values() %}<a class="chip {% if params.state == s.name %}active{% endif %}" href="?state={{ s.name }}"><span class="dot dot-{{ s.color }}"></span>{{ s.label }} <b>{{ counts.get(s.name, 0) }}</b></a>{% endfor %}
+  <a class="chip chip-warn {% if params.pending == '1' %}active{% endif %}" href="?pending=1">Awaiting 2nd approval <b>{{ pending|length }}</b></a>
+  {% if awaiting_me %}<a class="chip chip-bad" href="?pending=1">Needs <u>your</u> approval <b>{{ awaiting_me }}</b></a>{% endif %}
+  <a class="chip {% if params.assignee == 'me' %}active{% endif %}" href="?assignee=me">Assigned to me</a>
+</div>
+{% if m.quick_filters %}<div class="quick">{% for qf in m.quick_filters %}<a class="btn btn-ghost btn-sm" href="?{{ qf.params|urlencode }}">{{ qf.label }}</a>{% endfor %}</div>{% endif %}
+<form class="filters card" method="get">
+  <label>Search<input name="q" value="{{ params.q or '' }}" placeholder="ID or name"></label>
+  <label>State<select name="state"><option value="">Any</option>{% for s in m.states.values() %}<option value="{{ s.name }}" {% if params.state == s.name %}selected{% endif %}>{{ s.label }}</option>{% endfor %}</select></label>
+  {% for f in m.filter_fields %}
+    {% if f.type == 'enum' %}
+      <label>{{ f.label }}<select name="f_{{ f.name }}"><option value="">Any</option>{% for o in f.options %}<option value="{{ o }}" {% if params['f_' ~ f.name] == o %}selected{% endif %}>{{ o|replace('_',' ') }}</option>{% endfor %}</select></label>
+    {% elif f.type == 'date' %}
+      <label>{{ f.label }} from<input type="date" name="f_{{ f.name }}_from" value="{{ params['f_' ~ f.name ~ '_from'] or '' }}"></label>
+      <label>{{ f.label }} to<input type="date" name="f_{{ f.name }}_to" value="{{ params['f_' ~ f.name ~ '_to'] or '' }}"></label>
+    {% elif f.type in ('number','money','score') %}
+      <label>{{ f.label }} min<input type="number" step="any" name="f_{{ f.name }}_min" value="{{ params['f_' ~ f.name ~ '_min'] or '' }}"></label>
+      <label>{{ f.label }} max<input type="number" step="any" name="f_{{ f.name }}_max" value="{{ params['f_' ~ f.name ~ '_max'] or '' }}"></label>
+    {% else %}
+      <label>{{ f.label }}<input name="f_{{ f.name }}" value="{{ params['f_' ~ f.name] or '' }}"></label>
+    {% endif %}
+  {% endfor %}
+  <label>Sort<select name="sort">{% for k, lbl in [('priority','Priority'),('updated_at','Last update'),('created_at','Created')] %}<option value="{{ k }}" {% if params.sort == k %}selected{% endif %}>{{ lbl }}</option>{% endfor %}</select></label>
+  <div class="filter-actions"><button class="btn btn-primary" type="submit">Apply</button><a class="btn btn-ghost" href="/apps/{{ m.key }}">Reset</a></div>
+</form>
+<div class="card table-card">
+<table class="table">
+  <thead><tr><th>ID</th>{% for f in m.list_fields %}<th>{{ f.label }}</th>{% endfor %}<th>State</th><th>Owner</th><th>Updated</th></tr></thead>
+  <tbody>
+  {% for it in items %}
+    <tr>
+      <td class="mono nowrap"><a class="row-link" href="/apps/{{ m.key }}/{{ it.id }}">{{ it.id }}</a></td>
+      {% for f in m.list_fields %}<td>{% if f.name == m.title_field %}<a href="/apps/{{ m.key }}/{{ it.id }}">{{ fmt(f, it.data.get(f.name)) }}</a>{% else %}{{ fmt(f, it.data.get(f.name)) }}{% endif %}</td>{% endfor %}
+      <td><span class="badge badge-{{ m.states[it.state].color }}">{{ m.states[it.state].label }}</span>{% if it.id in pending %}<br><span class="badge badge-amber">⏳ 2nd approval: {{ m.transition(pending[it.id].transition).label }}</span>{% endif %}</td>
+      <td class="small">{{ people.get(it.assignee, '—') if it.assignee else '—' }}</td>
+      <td class="mono small nowrap">{{ it.updated_at[:16].replace('T',' ') }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="20" class="muted">No items match these filters.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="pager">
+  {% if page > 1 %}<a class="btn btn-ghost btn-sm" href="?{{ base_q|urlencode }}&page={{ page - 1 }}">← Prev</a>{% endif %}
+  <span class="muted">{{ total }} items · page {{ page }} of {{ ((total - 1) // page_size + 1) if total else 1 }}</span>
+  {% if page * page_size < total %}<a class="btn btn-ghost btn-sm" href="?{{ base_q|urlencode }}&page={{ page + 1 }}">Next →</a>{% endif %}
+</div>
+{% endblock %}

@@ -9,8 +9,20 @@ from app.main import create_app
 
 @pytest.fixture()
 def app(tmp_path):
-    settings = load_settings(db_path=str(tmp_path / "test.db"), secret_key="test-secret-key-not-for-prod")
+    settings = load_settings(db_path=str(tmp_path / "test.db"), secret_key="test-secret-key-not-for-prod", seed=False)
     return create_app(settings)
+
+
+@pytest.fixture()
+def seeded_app(tmp_path):
+    settings = load_settings(db_path=str(tmp_path / "seeded.db"), secret_key="test-secret-key-not-for-prod", seed=True)
+    return create_app(settings)
+
+
+@pytest.fixture()
+def sclient(seeded_app):
+    with TestClient(seeded_app) as c:
+        yield c
 
 
 @pytest.fixture()

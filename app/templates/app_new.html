@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}New · {{ m.title }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>New {{ m.title }} item</h1><p class="muted">Creation is recorded in the audit log under your name.</p></div></div>
+<form method="post" class="card form-grid">
+  {{ csrf_input(request) }}
+  {% for f in m.input_fields %}
+    <label>{{ f.label }}{% if f.required %} *{% endif %}
+      {% if f.type == 'enum' %}<select name="{{ f.name }}" {% if f.required %}required{% endif %}><option value=""></option>{% for o in f.options %}<option value="{{ o }}">{{ o|replace('_',' ') }}</option>{% endfor %}</select>
+      {% elif f.type in ('number','money','score') %}<input type="number" step="any" min="0" name="{{ f.name }}" {% if f.required %}required{% endif %}>
+      {% elif f.type == 'date' %}<input type="date" name="{{ f.name }}" {% if f.required %}required{% endif %}>
+      {% elif f.type == 'longtext' %}<textarea name="{{ f.name }}" maxlength="500" {% if f.required %}required{% endif %}></textarea>
+      {% else %}<input name="{{ f.name }}" maxlength="500" {% if f.required %}required{% endif %}>{% endif %}
+      {% if f.help %}<small class="muted">{{ f.help }}</small>{% endif %}
+    </label>
+  {% endfor %}
+  <div class="filter-actions"><button class="btn btn-primary" type="submit">Create</button><a class="btn btn-ghost" href="/apps/{{ m.key }}">Cancel</a></div>
+</form>
+{% endblock %}

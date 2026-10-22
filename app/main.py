@@ -11,14 +11,19 @@ from starlette.middleware.sessions import SessionMiddleware
 from urllib.parse import quote
 
 from .auth.provider import build_provider
+from .auth.rbac import PERMISSIONS, Role
 from .config import Settings, load_settings
 from .db import connect, init_db
 from .deps import LoginRequired
+from .engine import routes as engine_routes
+from .engine import store as _store  # noqa: F401  (registers item tables)
+from .engine.manifest import load_manifests
 from .routes import audit as audit_routes
 from .routes import auth as auth_routes
 from .routes import hub as hub_routes
 from .security import SecurityHeadersMiddleware, verify_csrf
-from .web import render
+from .seed import seed_all
+from .web import NavItem, register_nav, render
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -27,10 +32,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   dependencies=[Depends(verify_csrf)])
     app.state.settings = settings
     app.state.idp = build_provider(settings.idp)
+    app.state.manifests = load_manifests()
+    for m in app.state.manifests.values():
+        PERMISSIONS[f"app:{m.key}:view"] = frozenset(Role(r) for r in m.view_roles)
+        register_nav(NavItem(m.key, m.title, f"/apps/{m.key}", f"app:{m.key}:view", m.icon, "Apps"))
 
     conn = connect(settings.db_path)
     try:
         init_db(conn)
+        if settings.seed:
+            seed_all(conn, app.state.manifests)
     finally:
         conn.close()
 
@@ -42,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_routes.router)
     app.include_router(hub_routes.router)
     app.include_router(audit_routes.router)
+    app.include_router(engine_routes.router)
 
     @app.exception_handler(LoginRequired)
     async def _login_required(request: Request, exc: LoginRequired):

@@ -1,0 +1,138 @@
+# KYC review queue: the reference app for the Master Hub queue engine.
+app: kyc
+title: KYC Review Queue
+icon: "◉"
+order: 10
+description: Customer due diligence reviews. Approvals and rejections need a second person (four-eyes).
+id_prefix: KYC
+title_field: customer_name
+priority_field: risk_score
+initial: new
+
+permissions:
+  view: [kyc_analyst, ops_lead, support]      # support sees masked data, cannot act
+  comment: [kyc_analyst, ops_lead]
+  reveal_pii: [kyc_analyst, ops_lead]          # every reveal is audited
+  export: [ops_lead]                           # exports are masked and audited
+
+states:
+  new:            {label: New, color: blue}
+  in_review:      {label: In review, color: purple}
+  info_requested: {label: Info requested, color: amber}
+  escalated:      {label: Escalated, color: red}
+  approved:       {label: Approved, color: green, terminal: true}
+  rejected:       {label: Rejected, color: gray, terminal: true}
+
+transitions:
+  - {name: start_review, label: Start review, from: [new, info_requested], to: in_review, roles: [kyc_analyst]}
+  - {name: request_info, label: Request info, from: in_review, to: info_requested, roles: [kyc_analyst], require_comment: true, style: warn}
+  - {name: escalate, label: Escalate to Ops Lead, from: in_review, to: escalated, roles: [kyc_analyst], require_comment: true, style: danger}
+  - name: approve
+    label: Approve customer
+    from: [in_review, escalated]
+    to: approved
+    roles: [kyc_analyst, ops_lead]
+    four_eyes: true
+    approve_roles: [kyc_analyst, ops_lead]
+    style: ok
+  - name: reject
+    label: Reject / offboard
+    from: [in_review, escalated]
+    to: rejected
+    roles: [kyc_analyst, ops_lead]
+    four_eyes: true
+    approve_roles: [ops_lead]
+    style: danger
+  - name: reopen
+    label: Reopen (periodic review)
+    from: [approved, rejected]
+    to: in_review
+    roles: [ops_lead]
+    four_eyes: true
+    approve_roles: [ops_lead]
+
+quick_filters:
+  - {label: High risk open, params: {risk_min: "70", open: "1"}}
+  - {label: Sanctions / PEP hits, params: {f_sanctions_screening: potential_match}}
+  - {label: Retention expired (purge due), params: {f_retention_until_to: "@today"}}
+  - {label: Retention expires < 12 months, params: {f_retention_until_from: "@today", f_retention_until_to: "@today+365"}}
+  - {label: Awaiting 2nd approval, params: {pending: "1"}}
+
+fields:
+  # Identity
+  - {name: customer_name, label: Customer, section: Identity, list: true}
+  - {name: customer_type, label: Type, type: enum, options: [individual, business], section: Identity, filter: true}
+  - {name: nationality, label: Nationality, type: enum, options: [ES, FR, DE, GB, US, IT, PT, NL, NG, BR, AE, RU], section: Identity, filter: true, list: true}
+  - {name: date_of_birth, label: Date of birth, type: date, pii: true, section: Identity}
+  - {name: email, label: Email, pii: true, section: Identity}
+  - {name: phone, label: Phone, pii: true, section: Identity}
+  # Documents
+  - {name: id_document_type, label: ID document, type: enum, options: [passport, national_id_dni, residence_permit, driving_licence], section: Documents, filter: true}
+  - {name: id_document_number, label: Document number, pii: true, section: Documents}
+  - {name: id_document_expiry, label: Document expiry, type: date, section: Documents}
+  - name: id_document_check
+    label: Document check
+    type: enum
+    options: [verified, expired, mismatch, pending]
+    colors: {verified: green, expired: amber, mismatch: red, pending: gray}
+    section: Documents
+    filter: true
+    list: true
+  - {name: ssn, label: SSN / national tax ID, pii: true, section: Documents}
+  - name: proof_of_address
+    label: Proof of address
+    type: enum
+    options: [verified, older_than_3_months, mismatch, missing]
+    colors: {verified: green, older_than_3_months: amber, mismatch: red, missing: red}
+    section: Documents
+    filter: true
+  - {name: address, label: Address, pii: true, section: Documents}
+  - {name: selfie_match_score, label: Selfie match, type: score, section: Documents, list: true, help: Face match vs ID photo (0-100). Below 80 needs manual check.}
+  - name: liveness_check
+    label: Liveness
+    type: enum
+    options: [pass, fail, inconclusive]
+    colors: {pass: green, fail: red, inconclusive: amber}
+    section: Documents
+  # Financial profile
+  - {name: company, label: Employer / company, section: Financial profile}
+  - {name: occupation, label: Occupation, section: Financial profile}
+  - {name: salary_range, label: Salary range (EUR/yr), type: enum, options: ["<25k", "25k-50k", "50k-100k", "100k-250k", ">250k"], section: Financial profile, filter: true}
+  - {name: source_of_funds, label: Source of funds, type: enum, options: [salary, business_income, investments, inheritance, savings, crypto_assets, property_sale, other], section: Financial profile, filter: true}
+  - name: source_of_funds_evidence
+    label: SoF evidence
+    type: enum
+    options: [provided, partial, missing]
+    colors: {provided: green, partial: amber, missing: red}
+    section: Financial profile
+    filter: true
+  - {name: expected_monthly_volume, label: Expected monthly volume (EUR), type: money, section: Financial profile}
+  # Screening
+  - name: sanctions_screening
+    label: Sanctions screening
+    type: enum
+    options: [clear, potential_match, confirmed_match]
+    colors: {clear: green, potential_match: amber, confirmed_match: red}
+    section: Screening
+    filter: true
+    list: true
+  - {name: pep, label: PEP, type: enum, options: ["no", "yes"], colors: {"yes": amber, "no": gray}, section: Screening, filter: true}
+  - name: adverse_media
+    label: Adverse media
+    type: enum
+    options: [none, potential, confirmed]
+    colors: {none: gray, potential: amber, confirmed: red}
+    section: Screening
+  - {name: risk_score, label: Risk score, type: score, section: Screening, list: true}
+  - name: risk_level
+    label: Risk level
+    type: enum
+    options: [low, medium, high]
+    colors: {low: green, medium: amber, high: red}
+    section: Screening
+    filter: true
+  # Lifecycle & retention
+  - {name: submitted_at, label: Submitted, type: date, section: Lifecycle & retention, list: true}
+  - {name: relationship_status, label: Relationship, type: enum, options: [onboarding, active, closed], section: Lifecycle & retention, filter: true}
+  - {name: relationship_end, label: Relationship ended, type: date, section: Lifecycle & retention}
+  - {name: retention_until, label: Retain records until, type: date, section: Lifecycle & retention, filter: true, help: 5 years after the end of the business relationship (AMLD / BSA).}

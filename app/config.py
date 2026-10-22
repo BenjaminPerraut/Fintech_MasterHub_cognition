@@ -20,6 +20,7 @@ class Settings:
     session_max_age: int
     idp: str
     env_label: str
+    seed: bool = True
 
 
 def load_settings(**overrides) -> Settings:
@@ -35,6 +36,7 @@ def load_settings(**overrides) -> Settings:
         session_max_age=int(os.environ.get("MASTERHUB_SESSION_MAX_AGE", str(8 * 3600))),
         idp=os.environ.get("MASTERHUB_IDP", "stub"),
         env_label=os.environ.get("MASTERHUB_ENV_LABEL", "SANDBOX · sample data"),
+        seed=os.environ.get("MASTERHUB_SEED", "1") == "1",
     )
     values.update(overrides)
     return Settings(**values)

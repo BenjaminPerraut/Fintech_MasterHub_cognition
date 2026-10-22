@@ -28,7 +28,8 @@ def rules_page(request: Request, user: User = Depends(require_perm("rules:view")
         "SELECT * FROM audit_log WHERE action IN ('rules.scanned','rules.simulated') ORDER BY id DESC LIMIT 10")]
     return render(request, "rules.html", {"config": engine.config_text(), "counts": counts, "by_rule": by_rule,
                                           "scans": scans, "sims": engine.SIM_KINDS,
-                                          "can_run": user.can("rules:run")}, active="rules")
+                                          "can_run": user.can("rules:run"),
+                                          "sandbox": request.app.state.settings.sandbox}, active="rules")
 
 
 @router.post("/scan")
@@ -41,6 +42,8 @@ def run_scan(request: Request, user: User = Depends(require_perm("rules:run")), 
 
 @router.post("/simulate")
 async def run_simulation(request: Request, user: User = Depends(require_perm("rules:run")), db=Depends(get_db)):
+    if not request.app.state.settings.sandbox:
+        raise HTTPException(404, "traffic simulation is only available in sandbox mode")
     kind = str((await request.form()).get("kind", ""))
     if kind not in engine.SIM_KINDS:
         raise HTTPException(400, "unknown simulation")

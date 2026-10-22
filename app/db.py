@@ -17,6 +17,14 @@ CREATE TABLE IF NOT EXISTS users (
     last_login  TEXT
 );
 
+-- Server-side session registry: a signed cookie alone can't be revoked, this row can.
+CREATE TABLE IF NOT EXISTS sessions (
+    id          TEXT PRIMARY KEY,
+    subject     TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    revoked_at  TEXT
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     ts          TEXT NOT NULL,

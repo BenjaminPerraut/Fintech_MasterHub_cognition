@@ -49,6 +49,13 @@ def flash(request: Request, kind: str, msg: str) -> None:
     request.session["flash"] = [kind, msg]
 
 
+def _number(p: dict, key: str) -> float:
+    try:
+        return float(p[key])
+    except ValueError:
+        raise HTTPException(400, f"'{key}' must be a number")
+
+
 def query_items(db: sqlite3.Connection, m: Manifest, params: dict, user: User, limit: int | None = PAGE_SIZE):
     p = {k: resolve_token(str(v)) for k, v in params.items() if v not in (None, "")}
     where, args = ["app = ?"], [m.key]
@@ -68,7 +75,7 @@ def query_items(db: sqlite3.Connection, m: Manifest, params: dict, user: User, l
         where.append("id IN (SELECT item_id FROM decisions WHERE status = 'open')")
     if p.get("risk_min"):
         where.append("priority >= ?")
-        args.append(int(float(p["risk_min"])))
+        args.append(int(_number(p, "risk_min")))
     for f in m.fields:
         path = f"$.{f.name}"
         if f.type in ("date",):
@@ -82,7 +89,7 @@ def query_items(db: sqlite3.Connection, m: Manifest, params: dict, user: User, l
             for suffix, op in (("_min", ">="), ("_max", "<=")):
                 if p.get(f"f_{f.name}{suffix}"):
                     where.append(f"CAST(json_extract(data, ?) AS REAL) {op} ?")
-                    args.extend([path, float(p[f"f_{f.name}{suffix}"])])
+                    args.extend([path, _number(p, f"f_{f.name}{suffix}")])
         elif p.get(f"f_{f.name}"):
             if f.type == "enum":
                 where.append("json_extract(data, ?) = ?")
@@ -100,7 +107,7 @@ def query_items(db: sqlite3.Connection, m: Manifest, params: dict, user: User, l
     else:
         order = "priority DESC"
     total = db.execute(f"SELECT COUNT(*) FROM items WHERE {clause}", args).fetchone()[0]
-    page = max(int(p.get("page", 1) or 1), 1)
+    page = max(int(_number(p, "page")) if p.get("page") else 1, 1)
     sql = f"SELECT * FROM items WHERE {clause} ORDER BY {order}, id"
     if limit:
         sql += f" LIMIT {int(limit)} OFFSET {(page - 1) * int(limit)}"
@@ -190,16 +197,22 @@ def _detail_ctx(db, request: Request, user: User, m: Manifest, item_id: str, rev
     tally = store.vote_tally(db, item.id) if m.voting else {"up": 0, "down": 0}
     can_vote, vote_block = False, None
     if m.voting and user.role in m.voting.roles and item.state in m.voting.states:
-        if store.created_by(db, item.id) == user.email:
+        if store.creator(db, item.id) == user.subject:
             vote_block = "You proposed this item: votes must come from other people."
         elif any(v["voter"] == user.subject for v in votes):
             vote_block = "You have voted. Votes are final."
         else:
             can_vote = True
+    acts = service.available(m, item, actor, decision)
+    if any(t.not_by_creator for t in m.transitions) and store.creator(db, item.id) == user.subject:
+        acts["transitions"] = [t for t in acts["transitions"] if not t.not_by_creator]
+        if decision is not None and m.transition(decision["transition"]).not_by_creator and acts["approve"]:
+            acts["approve"] = acts["reject"] = False
+            acts["approve_block"] = "You created this item: someone else must approve it (segregation of duties)."
     return {
         "votes": votes, "tally": tally, "can_vote": can_vote, "vote_block": vote_block,
         "quorum_met": m.voting.passed(tally) if m.voting else True,
-        "m": m, "item": item, "decision": decision, "acts": service.available(m, item, actor, decision),
+        "m": m, "item": item, "decision": decision, "acts": acts,
         "comments": store.comments_for(db, item.id), "history": store.history_for(db, item.id),
         "decisions": store.decisions_for(db, item.id), "intact": store.item_integrity(db, item),
         "revealed": revealed, "people": people(db),

@@ -37,7 +37,7 @@ def desk(db: sqlite3.Connection, manifests: dict, user: User) -> dict:
         if m.voting and user.role in m.voting.roles:
             vph = ",".join("?" * len(m.voting.states))
             for r in db.execute(f"SELECT id FROM items WHERE app = ? AND state IN ({vph})", (m.key, *m.voting.states)):
-                if store.created_by(db, r["id"]) != user.email and not db.execute(
+                if store.creator(db, r["id"]) != user.subject and not db.execute(
                         "SELECT 1 FROM votes WHERE item_id = ? AND voter = ?", (r["id"], user.subject)).fetchone():
                     votes += 1
         tiles.append({"m": m, "open": open_n, "hot": len(hot), "pending": len(decs), "mine": len(mine), "votes": votes})

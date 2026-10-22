@@ -9,7 +9,7 @@
 <div class="detail-grid">
 <div>
   <div class="card"><h3>Rules in force <span class="muted small">app/rules/rules.yaml</span></h3><pre class="code">{{ config }}</pre></div>
-  {% if can_run %}
+  {% if can_run and sandbox %}
   <div class="card"><h3>Simulate traffic (sample data)</h3><p class="small muted">Injects fictional ledger events, then runs a scan. Logged as <span class="mono">rules.simulated</span>.</p>
     <form method="post" action="/rules/simulate">{{ csrf_input(request) }}<div class="actions">{% for k, label in sims.items() %}<button class="btn btn-sm" name="kind" value="{{ k }}">{{ label }}</button>{% endfor %}</div></form>
   </div>

@@ -102,7 +102,8 @@ def create(conn: sqlite3.Connection, manifest: Manifest, actor: Actor, data: dic
     with transaction(conn):
         item = store.insert_item(conn, app=manifest.key, item_id=store.next_id(conn, manifest.key, manifest.id_prefix),
                                  state=state or manifest.initial, data=clean, priority=priority, created_at=created_at)
-        _audit(conn, actor, "item.created", item, state=item.state, after_hash=item.content_hash, version=1)
+        _audit(conn, actor, "item.created", item, state=item.state, after_hash=item.content_hash, version=1,
+               created_by=actor.subject)
     return item
 
 
@@ -121,7 +122,13 @@ def update_data(conn: sqlite3.Connection, manifest: Manifest, actor: Actor, item
 
 
 def _check_version(item: store.Item, expected_version: int | None) -> None:
-    if expected_version is not None and int(expected_version) != item.version:
+    if expected_version is None:
+        return
+    try:
+        expected_version = int(expected_version)
+    except (TypeError, ValueError):
+        raise EngineError("invalid record version")
+    if expected_version != item.version:
         raise EngineConflict(f"{item.id} changed since you opened it (v{expected_version} → v{item.version}). Reload and retry.")
 
 
@@ -154,6 +161,8 @@ def transition(conn: sqlite3.Connection, manifest: Manifest, actor: Actor, item_
             raise EngineConflict(f"'{t.label}' is not allowed from state {item.state}")
         if store.open_decision(conn, item.id) is not None:
             raise EngineConflict(f"{item.id} has a decision awaiting second approval")
+        if t.not_by_creator and store.creator(conn, item.id) == actor.subject:
+            raise EngineForbidden(f"segregation of duties: whoever created {item.id} cannot '{t.label}' it")
         four_eyes = t.needs_four_eyes(item.data)
         comment = _clean_comment(comment, t.require_comment or four_eyes)
         if t.requires_quorum:
@@ -195,6 +204,8 @@ def approve(conn: sqlite3.Connection, manifest: Manifest, actor: Actor, item_id:
             raise EngineForbidden("four-eyes: the person who proposed a decision cannot approve it")
         if actor.role not in t.approve_roles:
             raise EngineForbidden(f"role {actor.role} cannot approve '{t.label}'")
+        if t.not_by_creator and store.creator(conn, item.id) == actor.subject:
+            raise EngineForbidden(f"segregation of duties: whoever created {item.id} cannot approve '{t.label}'")
         if item.state not in t.from_:
             raise EngineConflict(f"item moved to {item.state}; decision is stale")
         conn.execute("UPDATE decisions SET status = 'approved', decided_by = ?, decided_by_name = ?, decided_at = ?,"
@@ -265,7 +276,7 @@ def vote(conn: sqlite3.Connection, manifest: Manifest, actor: Actor, item_id: st
         item = _load(conn, manifest, item_id)
         if item.state not in v.states:
             raise EngineConflict(f"voting is closed for {item.id} (state {item.state})")
-        if store.created_by(conn, item.id) == actor.email:
+        if store.creator(conn, item.id) == actor.subject:
             raise EngineForbidden("you proposed this item: votes must come from other people")
         if conn.execute("SELECT 1 FROM votes WHERE item_id = ? AND voter = ?", (item.id, actor.subject)).fetchone():
             raise EngineConflict("you already voted on this item; votes are final")

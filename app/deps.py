@@ -55,6 +55,10 @@ def current_user(request: Request, db: sqlite3.Connection = Depends(get_db)) -> 
     if time.time() - float(sess.get("iat", 0)) > request.app.state.settings.session_max_age:
         request.session.clear()
         raise LoginRequired()
+    srow = db.execute("SELECT subject, revoked_at FROM sessions WHERE id = ?", (sess.get("sid"),)).fetchone()
+    if srow is None or srow["revoked_at"] or srow["subject"] != sess.get("sub"):
+        request.session.clear()  # logged out elsewhere, or a replayed cookie
+        raise LoginRequired()
     # The DB row is the source of truth on every request: deactivation / role change is immediate.
     row = db.execute("SELECT * FROM users WHERE subject = ?", (sess.get("sub"),)).fetchone()
     if row is None or not row["active"]:

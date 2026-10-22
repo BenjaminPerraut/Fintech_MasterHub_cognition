@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 import sqlite3
 import time
 
@@ -67,6 +68,8 @@ async def auth_callback(request: Request, db: sqlite3.Connection = Depends(get_d
                           details={"from": row["role"], "to": role.value, "via": idp.key})
                 db.execute("UPDATE users SET email = ?, name = ?, role = ?, last_login = ? WHERE subject = ?",
                            (identity.email, identity.name, role.value, now, identity.subject))
+            sid = secrets.token_urlsafe(32)
+            db.execute("INSERT INTO sessions (id, subject, created_at) VALUES (?, ?, ?)", (sid, identity.subject, now))
             audit(db, request, None, "auth.login", actor=identity.email, actor_role=role.value,
                   entity_type="user", entity_id=identity.subject, details={"idp": idp.key})
     if refused:
@@ -74,7 +77,7 @@ async def auth_callback(request: Request, db: sqlite3.Connection = Depends(get_d
                                               "error": "account deactivated"}, status_code=403)
 
     request.session.clear()  # prevent session fixation
-    request.session["user"] = {"sub": identity.subject, "iat": time.time()}
+    request.session["user"] = {"sub": identity.subject, "iat": time.time(), "sid": sid}
     csrf_token(request)
     return RedirectResponse(nxt, status_code=303)
 
@@ -82,6 +85,7 @@ async def auth_callback(request: Request, db: sqlite3.Connection = Depends(get_d
 @router.post("/logout")
 def logout(request: Request, user: User = Depends(current_user), db: sqlite3.Connection = Depends(get_db)):
     with transaction(db):
+        db.execute("UPDATE sessions SET revoked_at = ? WHERE id = ?", (utcnow(), request.session.get("user", {}).get("sid")))
         audit(db, request, user, "auth.logout", entity_type="user", entity_id=user.subject)
     request.session.clear()
     return RedirectResponse("/login", status_code=303)

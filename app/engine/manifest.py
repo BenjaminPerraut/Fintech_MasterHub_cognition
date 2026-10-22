@@ -6,6 +6,7 @@ silently opening a hole.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from pathlib import Path
 
 import yaml
@@ -35,6 +36,7 @@ class FieldDef:
     input: bool = False
     required: bool = False
     help: str = ""
+    default: str | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,31 @@ class TransitionDef:
     require_comment: bool = False
     style: str = ""
     confirm: str = ""
+    four_eyes_if: tuple | None = None  # (field, threshold): four-eyes only when data[field] >= threshold
+    requires_quorum: bool = False
+    set: dict = field(default_factory=dict)  # data fields written when the transition is applied
+
+    def needs_four_eyes(self, data: dict) -> bool:
+        if self.four_eyes:
+            return True
+        if self.four_eyes_if:
+            name, threshold = self.four_eyes_if
+            try:
+                return float(data.get(name) or 0) >= threshold
+            except (TypeError, ValueError):
+                return True  # unparseable amount: fail closed
+        return False
+
+
+@dataclass(frozen=True)
+class VotingDef:
+    roles: frozenset[str]
+    quorum: int
+    states: tuple[str, ...]
+
+    def passed(self, tally: dict) -> bool:
+        up, down = tally.get("up", 0), tally.get("down", 0)
+        return up >= self.quorum and up > down
 
 
 @dataclass(frozen=True)
@@ -79,6 +106,7 @@ class Manifest:
     priority_field: str | None
     quick_filters: tuple[dict, ...] = ()
     order: int = 100
+    voting: VotingDef | None = None
 
     def field(self, name: str) -> FieldDef:
         for f in self.fields:
@@ -116,6 +144,13 @@ class Manifest:
         return [s.name for s in self.states.values() if not s.terminal]
 
 
+def resolve_token(value):
+    """'@today', '@today+5', '@today-1' -> ISO date. Used by manifest defaults and quick filters."""
+    if isinstance(value, str) and value.startswith("@today"):
+        return (date.today() + timedelta(days=int(value[6:] or 0))).isoformat()
+    return value
+
+
 def _roles(value, where: str) -> frozenset[str]:
     roles = frozenset(value or [])
     valid = {r.value for r in Role}
@@ -147,8 +182,21 @@ def parse_manifest(raw: dict) -> Manifest:
             section=f.get("section", "Details"), options=tuple(f.get("options", ())), colors=f.get("colors", {}),
             pii=bool(f.get("pii")), list=bool(f.get("list")), filter=bool(f.get("filter")),
             input=bool(f.get("input")), required=bool(f.get("required")), help=f.get("help", ""),
+            default=None if f.get("default") is None else str(f.get("default")),
         ))
     names = {f.name for f in fields}
+    types = {f.name: f.type for f in fields}
+
+    voting = None
+    if raw.get("voting"):
+        v = raw["voting"]
+        vstates = tuple(v.get("states", ()))
+        for s in vstates:
+            if s not in states:
+                raise ManifestError(f"{key}.voting: unknown state {s}")
+        voting = VotingDef(_roles(v.get("roles"), f"{key}.voting"), int(v.get("quorum", 2)), vstates)
+        if voting.quorum < 1 or not voting.roles or not vstates:
+            raise ManifestError(f"{key}.voting: needs roles, states and quorum >= 1")
 
     transitions = []
     for t in raw.get("transitions", []):
@@ -159,12 +207,24 @@ def parse_manifest(raw: dict) -> Manifest:
                 raise ManifestError(f"{where}: unknown state {s}")
         four_eyes = bool(t.get("four_eyes"))
         approve_roles = _roles(t.get("approve_roles"), where)
-        if four_eyes and not approve_roles:
+        fe_if = t.get("four_eyes_if")
+        if fe_if:
+            if types.get(fe_if.get("field")) not in ("number", "money", "score"):
+                raise ManifestError(f"{where}: four_eyes_if needs a numeric field")
+            fe_if = (fe_if["field"], float(fe_if["gte"]))
+        if (four_eyes or fe_if) and not approve_roles:
             raise ManifestError(f"{where}: four_eyes transitions need approve_roles")
+        if t.get("requires_quorum") and voting is None:
+            raise ManifestError(f"{where}: requires_quorum needs a voting section")
+        set_ = dict(t.get("set") or {})
+        for k in set_:
+            if k not in names:
+                raise ManifestError(f"{where}: set writes undeclared field {k}")
         transitions.append(TransitionDef(
             name=t["name"], label=t.get("label", t["name"].replace("_", " ").title()), from_=from_, to=t["to"],
             roles=_roles(t["roles"], where), four_eyes=four_eyes, approve_roles=approve_roles,
             require_comment=bool(t.get("require_comment")), style=t.get("style", ""), confirm=t.get("confirm", ""),
+            four_eyes_if=fe_if or None, requires_quorum=bool(t.get("requires_quorum")), set=set_,
         ))
 
     perms = raw.get("permissions", {})
@@ -183,7 +243,7 @@ def parse_manifest(raw: dict) -> Manifest:
         create_roles=_roles(perms.get("create"), f"{key}.create"),
         export_roles=_roles(perms.get("export"), f"{key}.export"),
         title_field=title_field, priority_field=priority_field,
-        quick_filters=tuple(raw.get("quick_filters", ())), order=int(raw.get("order", 100)),
+        quick_filters=tuple(raw.get("quick_filters", ())), order=int(raw.get("order", 100)), voting=voting,
     )
 
 

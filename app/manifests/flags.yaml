@@ -1,0 +1,98 @@
+# Feature-flag admin: propose -> vote (quorum) -> canary (four-eyes) -> live (four-eyes). Kill switch is instant.
+app: flags
+title: Feature Flags
+icon: "⚑"
+order: 30
+description: Engineers propose features, peers vote, then rollout needs a second approver. Rollback (kill switch) is instant but always needs a reason.
+id_prefix: FF
+title_field: flag_key
+priority_field: customer_impact
+initial: draft
+
+permissions:
+  view: [engineer, ops_lead, admin, support]   # support can see what is live, read-only
+  create: [engineer]
+  comment: [engineer, ops_lead, admin]
+  export: [ops_lead, admin]
+
+voting:
+  roles: [engineer, ops_lead, admin]
+  quorum: 3
+  states: [voting]
+
+states:
+  draft:       {label: Draft, color: gray}
+  voting:      {label: Voting, color: blue}
+  ready:       {label: Approved for rollout, color: cyan}
+  canary:      {label: Canary (10%), color: purple}
+  live:        {label: Live (100%), color: green}
+  rolled_back: {label: Rolled back, color: red}
+  shelved:     {label: Shelved, color: gray, terminal: true}
+  retired:     {label: Retired, color: gray, terminal: true}
+
+transitions:
+  - {name: open_vote, label: Open for voting, from: draft, to: voting, roles: [engineer]}
+  - {name: accept, label: Accept (quorum reached), from: voting, to: ready, roles: [engineer, ops_lead], requires_quorum: true, style: ok}
+  - {name: shelve, label: Shelve, from: [draft, voting], to: shelved, roles: [ops_lead], require_comment: true, style: danger}
+  - name: start_canary
+    label: Start canary (10%)
+    from: ready
+    to: canary
+    roles: [engineer]
+    four_eyes: true
+    approve_roles: [engineer, ops_lead]
+    set: {rollout_pct: 10}
+  - name: promote
+    label: Promote to 100%
+    from: canary
+    to: live
+    roles: [engineer]
+    four_eyes: true
+    approve_roles: [ops_lead]
+    set: {rollout_pct: 100}
+    style: ok
+  - name: rollback
+    label: Roll back (kill switch)
+    from: [canary, live]
+    to: rolled_back
+    roles: [engineer, ops_lead]
+    require_comment: true
+    set: {rollout_pct: 0}
+    style: danger
+  - {name: retry, label: Back to ready, from: rolled_back, to: ready, roles: [engineer], require_comment: true}
+  - name: retire
+    label: Retire flag
+    from: [live, rolled_back]
+    to: retired
+    roles: [ops_lead]
+    four_eyes: true
+    approve_roles: [ops_lead, admin]
+
+quick_filters:
+  - {label: Open for voting, params: {state: voting}}
+  - {label: Live in production, params: {state: live, f_environment: production}}
+  - {label: High risk, params: {f_risk: high}}
+  - {label: Rolled back, params: {state: rolled_back}}
+  - {label: Awaiting 2nd approval, params: {pending: "1"}}
+
+fields:
+  - {name: flag_key, label: Flag key, section: Flag, list: true, input: true, required: true}
+  - {name: title, label: Feature, section: Flag, list: true, input: true, required: true}
+  - {name: description, label: Description, type: longtext, section: Flag, input: true}
+  - {name: owner_team, label: Owner team, type: enum, options: [payments, kyc, cards, growth, platform, ledger], section: Flag, list: true, input: true, filter: true}
+  - {name: ticket, label: Ticket, section: Flag, input: true}
+  - {name: surface, label: Surface, type: enum, options: [mobile_app, web_app, backoffice, api, ledger], section: Rollout, input: true, filter: true}
+  - {name: environment, label: Environment, type: enum, options: [staging, production], colors: {production: red, staging: blue}, section: Rollout, input: true, filter: true, required: true}
+  - {name: target_segment, label: Target segment, section: Rollout, input: true}
+  - {name: rollout_pct, label: Rollout %, type: number, section: Rollout, list: true, default: "0"}
+  - name: risk
+    label: Risk
+    type: enum
+    options: [low, medium, high]
+    colors: {low: green, medium: amber, high: red}
+    section: Rollout
+    input: true
+    filter: true
+    list: true
+    required: true
+  - {name: customer_impact, label: Customer impact, type: score, section: Rollout, input: true, help: 0-100. Drives queue priority.}

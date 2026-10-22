@@ -65,6 +65,22 @@ CREATE TRIGGER IF NOT EXISTS comments_no_update BEFORE UPDATE ON comments
 BEGIN SELECT RAISE(ABORT, 'comments are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS comments_no_delete BEFORE DELETE ON comments
 BEGIN SELECT RAISE(ABORT, 'comments are append-only'); END;
+
+CREATE TABLE IF NOT EXISTS votes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id    TEXT NOT NULL REFERENCES items(id),
+    voter      TEXT NOT NULL,
+    voter_name TEXT NOT NULL,
+    voter_role TEXT NOT NULL,
+    vote       TEXT NOT NULL CHECK (vote IN ('up','down')),
+    comment    TEXT NOT NULL DEFAULT '',
+    ts         TEXT NOT NULL,
+    UNIQUE (item_id, voter)
+);
+CREATE TRIGGER IF NOT EXISTS votes_no_update BEFORE UPDATE ON votes
+BEGIN SELECT RAISE(ABORT, 'votes are final and append-only'); END;
+CREATE TRIGGER IF NOT EXISTS votes_no_delete BEFORE DELETE ON votes
+BEGIN SELECT RAISE(ABORT, 'votes are final and append-only'); END;
 """
 register_schema(SCHEMA)
 
@@ -144,6 +160,32 @@ def decisions_for(conn: sqlite3.Connection, item_id: str) -> list[sqlite3.Row]:
 
 def comments_for(conn: sqlite3.Connection, item_id: str) -> list[sqlite3.Row]:
     return conn.execute("SELECT * FROM comments WHERE item_id = ? ORDER BY id ASC", (item_id,)).fetchall()
+
+
+def votes_for(conn: sqlite3.Connection, item_id: str) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM votes WHERE item_id = ? ORDER BY id", (item_id,)).fetchall()
+
+
+def vote_tally(conn: sqlite3.Connection, item_id: str) -> dict:
+    tally = {"up": 0, "down": 0}
+    for r in conn.execute("SELECT vote, COUNT(*) AS n FROM votes WHERE item_id = ? GROUP BY vote", (item_id,)):
+        tally[r["vote"]] = r["n"]
+    return tally
+
+
+def tallies(conn: sqlite3.Connection, app: str) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for r in conn.execute("SELECT v.item_id, v.vote, COUNT(*) AS n FROM votes v JOIN items i ON i.id = v.item_id"
+                          " WHERE i.app = ? GROUP BY v.item_id, v.vote", (app,)):
+        out.setdefault(r["item_id"], {"up": 0, "down": 0})[r["vote"]] = r["n"]
+    return out
+
+
+def created_by(conn: sqlite3.Connection, item_id: str) -> str | None:
+    """Creator according to the audit log (the source of truth), as an email."""
+    row = conn.execute("SELECT actor FROM audit_log WHERE entity_type = 'item' AND entity_id = ?"
+                       " AND action = 'item.created' ORDER BY id LIMIT 1", (item_id,)).fetchone()
+    return row["actor"] if row else None
 
 
 def history_for(conn: sqlite3.Connection, item_id: str) -> list[sqlite3.Row]:

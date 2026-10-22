@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from ..audit import record_event, utcnow
 from ..db import transaction
 from . import store
-from .manifest import Manifest, TransitionDef
+from .manifest import Manifest, TransitionDef, resolve_token
 
 MAX_COMMENT = 4000
 
@@ -93,6 +93,10 @@ def create(conn: sqlite3.Connection, manifest: Manifest, actor: Actor, data: dic
            created_at: str | None = None, enforce_roles: bool = True) -> store.Item:
     if enforce_roles and actor.role not in manifest.create_roles:
         raise EngineForbidden(f"role {actor.role} cannot create {manifest.key} items")
+    data = dict(data)
+    for f in manifest.fields:
+        if f.default is not None and data.get(f.name) in (None, ""):
+            data[f.name] = resolve_token(f.default)
     clean = _coerce(manifest, data)
     priority = int(clean.get(manifest.priority_field, 0) or 0) if manifest.priority_field else 0
     with transaction(conn):
@@ -122,7 +126,13 @@ def _check_version(item: store.Item, expected_version: int | None) -> None:
 
 
 def _apply(conn, actor: Actor, item: store.Item, t: TransitionDef, action: str, **extra) -> store.Item:
-    new = store.save_item(conn, item, state=t.to)
+    if t.set:
+        changed = {k: {"from": item.data.get(k), "to": v} for k, v in t.set.items() if item.data.get(k) != v}
+        if changed:
+            extra["changes"] = changed
+        new = store.save_item(conn, item, state=t.to, data={**item.data, **t.set})
+    else:
+        new = store.save_item(conn, item, state=t.to)
     _audit(conn, actor, action, new, transition=t.name, from_state=item.state, to_state=t.to,
            before_hash=item.content_hash, after_hash=new.content_hash, version=new.version, **extra)
     return new
@@ -137,7 +147,6 @@ def transition(conn: sqlite3.Connection, manifest: Manifest, actor: Actor, item_
         raise EngineNotFound(f"unknown action {name}")
     if actor.role not in t.roles:
         raise EngineForbidden(f"role {actor.role} cannot '{t.label}' on {manifest.key}")
-    comment = _clean_comment(comment, t.require_comment or t.four_eyes)
     with transaction(conn):
         item = _load(conn, manifest, item_id)
         _check_version(item, expected_version)
@@ -145,13 +154,22 @@ def transition(conn: sqlite3.Connection, manifest: Manifest, actor: Actor, item_
             raise EngineConflict(f"'{t.label}' is not allowed from state {item.state}")
         if store.open_decision(conn, item.id) is not None:
             raise EngineConflict(f"{item.id} has a decision awaiting second approval")
-        if t.four_eyes:
+        four_eyes = t.needs_four_eyes(item.data)
+        comment = _clean_comment(comment, t.require_comment or four_eyes)
+        if t.requires_quorum:
+            tally = store.vote_tally(conn, item.id)
+            if not manifest.voting.passed(tally):
+                raise EngineConflict(f"'{t.label}' needs {manifest.voting.quorum} approving votes and more up than "
+                                     f"down votes (currently {tally['up']} up / {tally['down']} down)")
+        if four_eyes:
             cur = conn.execute(
                 "INSERT INTO decisions (item_id, transition, proposed_by, proposed_by_name, proposed_role, proposed_at, comment)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (item.id, t.name, actor.subject, actor.name, actor.role, utcnow(), comment))
+            rule = {"four_eyes_rule": f"{t.four_eyes_if[0]} >= {t.four_eyes_if[1]:g}"} \
+                if t.four_eyes_if and not t.four_eyes else {}
             _audit(conn, actor, "item.proposed", item, transition=t.name, decision_id=cur.lastrowid,
-                   from_state=item.state, to_state=t.to, comment=comment)
+                   from_state=item.state, to_state=t.to, comment=comment, **rule)
             return "proposed"
         if comment:
             _add_comment(conn, actor, item, comment)
@@ -230,6 +248,33 @@ def comment(conn: sqlite3.Connection, manifest: Manifest, actor: Actor, item_id:
         item = _load(conn, manifest, item_id)
         cid = _add_comment(conn, actor, item, body)
         _audit(conn, actor, "item.commented", item, comment_id=cid, body=body)
+
+
+def vote(conn: sqlite3.Connection, manifest: Manifest, actor: Actor, item_id: str, value: str,
+         comment: str = "") -> dict:
+    """One final vote per person per item. The item's creator cannot vote. Down votes need a reason."""
+    v = manifest.voting
+    if v is None:
+        raise EngineNotFound(f"{manifest.key} has no voting")
+    if actor.role not in v.roles:
+        raise EngineForbidden(f"role {actor.role} cannot vote on {manifest.key}")
+    if value not in ("up", "down"):
+        raise EngineError("vote must be 'up' or 'down'")
+    comment = _clean_comment(comment, value == "down")
+    with transaction(conn):
+        item = _load(conn, manifest, item_id)
+        if item.state not in v.states:
+            raise EngineConflict(f"voting is closed for {item.id} (state {item.state})")
+        if store.created_by(conn, item.id) == actor.email:
+            raise EngineForbidden("you proposed this item: votes must come from other people")
+        if conn.execute("SELECT 1 FROM votes WHERE item_id = ? AND voter = ?", (item.id, actor.subject)).fetchone():
+            raise EngineConflict("you already voted on this item; votes are final")
+        conn.execute("INSERT INTO votes (item_id, voter, voter_name, voter_role, vote, comment, ts)"
+                     " VALUES (?, ?, ?, ?, ?, ?, ?)", (item.id, actor.subject, actor.name, actor.role, value, comment, utcnow()))
+        tally = store.vote_tally(conn, item.id)
+        _audit(conn, actor, "item.voted", item, vote=value, comment=comment, tally=tally,
+               quorum_reached=v.passed(tally))
+    return tally
 
 
 def worker_roles(manifest: Manifest) -> set[str]:

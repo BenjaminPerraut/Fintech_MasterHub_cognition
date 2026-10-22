@@ -94,3 +94,5 @@ blockquote{margin:8px 0;padding:8px 12px;border-left:3px solid #f59e0b;backgroun
 .fe{font-size:10px;background:rgba(255,255,255,.25);padding:0 4px;border-radius:4px}
 .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.form-grid .filter-actions{grid-column:1/-1}
 .pre{white-space:pre-wrap}
+.vote-card meter{width:100%;height:12px;margin:.25rem 0 .5rem}
+.btn[disabled]{opacity:.5;cursor:not-allowed}

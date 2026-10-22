@@ -5,7 +5,6 @@ import csv
 import io
 import json
 import sqlite3
-from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
@@ -13,7 +12,7 @@ from fastapi.responses import RedirectResponse, Response
 from ..db import transaction
 from ..deps import User, audit, client_ip, current_user, deny, get_db
 from . import service, store
-from .manifest import Manifest
+from .manifest import Manifest, resolve_token
 from .render import mask
 
 router = APIRouter(prefix="/apps")
@@ -48,13 +47,6 @@ def run(db, request: Request, user: User, fn):
 
 def flash(request: Request, kind: str, msg: str) -> None:
     request.session["flash"] = [kind, msg]
-
-
-def resolve_token(value: str) -> str:
-    if value.startswith("@today"):
-        days = int(value[6:] or 0)
-        return (date.today() + timedelta(days=days)).isoformat()
-    return value
 
 
 def query_items(db: sqlite3.Connection, m: Manifest, params: dict, user: User, limit: int | None = PAGE_SIZE):
@@ -137,7 +129,7 @@ def list_items(request: Request, app_key: str, user: User = Depends(current_user
     return render(request, "app_list.html", {
         "m": m, "items": items, "total": total, "page": page, "page_size": PAGE_SIZE, "params": params,
         "counts": counts, "pending": pending_ids, "awaiting_me": awaiting_me, "people": people(db),
-        "base_q": base_q, "can_create": user.role in m.create_roles, "can_export": user.role in m.export_roles,
+        "base_q": base_q, "tallies": store.tallies(db, m.key) if m.voting else {}, "can_create": user.role in m.create_roles, "can_export": user.role in m.export_roles,
     }, active=m.key)
 
 
@@ -194,7 +186,19 @@ def _detail_ctx(db, request: Request, user: User, m: Manifest, item_id: str, rev
         raise HTTPException(404, f"{item_id} not found")
     decision = store.open_decision(db, item.id)
     actor = actor_of(user, request)
+    votes = store.votes_for(db, item.id) if m.voting else []
+    tally = store.vote_tally(db, item.id) if m.voting else {"up": 0, "down": 0}
+    can_vote, vote_block = False, None
+    if m.voting and user.role in m.voting.roles and item.state in m.voting.states:
+        if store.created_by(db, item.id) == user.email:
+            vote_block = "You proposed this item: votes must come from other people."
+        elif any(v["voter"] == user.subject for v in votes):
+            vote_block = "You have voted. Votes are final."
+        else:
+            can_vote = True
     return {
+        "votes": votes, "tally": tally, "can_vote": can_vote, "vote_block": vote_block,
+        "quorum_met": m.voting.passed(tally) if m.voting else True,
         "m": m, "item": item, "decision": decision, "acts": service.available(m, item, actor, decision),
         "comments": store.comments_for(db, item.id), "history": store.history_for(db, item.id),
         "decisions": store.decisions_for(db, item.id), "intact": store.item_integrity(db, item),
@@ -261,6 +265,18 @@ async def do_decision(request: Request, app_key: str, item_id: str, decision_id:
     run(db, request, user, fns[verb])
     flash(request, "ok", {"approve": "Decision approved and applied.", "reject": "Proposal rejected.",
                           "withdraw": "Proposal withdrawn."}[verb])
+    return RedirectResponse(f"/apps/{m.key}/{item_id}", status_code=303)
+
+
+@router.post("/{app_key}/{item_id}/vote")
+async def do_vote(request: Request, app_key: str, item_id: str, user: User = Depends(current_user),
+                  db=Depends(get_db)):
+    m = get_manifest(request, app_key)
+    guard_view(db, request, user, m)
+    f = await _form(request)
+    run(db, request, user, lambda: service.vote(db, m, actor_of(user, request), item_id, f.get("vote", ""),
+                                                f.get("comment", "")))
+    flash(request, "ok", "Vote recorded. Votes are final and audited.")
     return RedirectResponse(f"/apps/{m.key}/{item_id}", status_code=303)
 
 

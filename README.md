@@ -29,6 +29,8 @@ Open http://localhost:8000 and pick a seeded account on the stub SSO page.
 | Four-eyes (service + DB trigger + tests) | `app/engine/service.py`, `app/engine/store.py`, `tests/test_engine.py` |
 | Record tamper detection (content hash vs audit) | `store.verify_records`, `/audit/verify` |
 | PII masked by default, audited reveal and export | `app/engine/routes.py` |
+| Refunds: four-eyes only at or above €500, payout by Ops Lead | `app/manifests/refunds.yaml` |
+| Feature flags: final votes, quorum, four-eyes rollout, instant kill switch | `app/manifests/flags.yaml`, `service.vote` |
 
 ## Seeded accounts
 

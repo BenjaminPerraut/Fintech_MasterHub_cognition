@@ -29,8 +29,8 @@ def seed_users(conn: sqlite3.Connection) -> None:
 
 
 def seed_all(conn: sqlite3.Connection, manifests: dict) -> None:
-    from . import kyc
+    from . import flags, kyc, refunds
     seed_users(conn)
-    for key, module in (("kyc", kyc),):
+    for key, module in (("kyc", kyc), ("refunds", refunds), ("flags", flags)):
         if key in manifests and not conn.execute("SELECT 1 FROM items WHERE app = ? LIMIT 1", (key,)).fetchone():
             module.seed(conn, manifests[key])

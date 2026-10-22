@@ -39,12 +39,13 @@
 </form>
 <div class="card table-card">
 <table class="table">
-  <thead><tr><th>ID</th>{% for f in m.list_fields %}<th>{{ f.label }}</th>{% endfor %}<th>State</th><th>Owner</th><th>Updated</th></tr></thead>
+  <thead><tr><th>ID</th>{% for f in m.list_fields %}<th>{{ f.label }}</th>{% endfor %}{% if m.voting %}<th>Votes</th>{% endif %}<th>State</th><th>Owner</th><th>Updated</th></tr></thead>
   <tbody>
   {% for it in items %}
     <tr>
       <td class="mono nowrap"><a class="row-link" href="/apps/{{ m.key }}/{{ it.id }}">{{ it.id }}</a></td>
       {% for f in m.list_fields %}<td>{% if f.name == m.title_field %}<a href="/apps/{{ m.key }}/{{ it.id }}">{{ fmt(f, it.data.get(f.name)) }}</a>{% else %}{{ fmt(f, it.data.get(f.name)) }}{% endif %}</td>{% endfor %}
+      {% if m.voting %}{% set tl = tallies.get(it.id, {}) %}<td class="nowrap small">▲ {{ tl.get('up', 0) }} · ▼ {{ tl.get('down', 0) }}</td>{% endif %}
       <td><span class="badge badge-{{ m.states[it.state].color }}">{{ m.states[it.state].label }}</span>{% if it.id in pending %}<br><span class="badge badge-amber">⏳ 2nd approval: {{ m.transition(pending[it.id].transition).label }}</span>{% endif %}</td>
       <td class="small">{{ people.get(it.assignee, '—') if it.assignee else '—' }}</td>
       <td class="mono small nowrap">{{ it.updated_at[:16].replace('T',' ') }}</td>

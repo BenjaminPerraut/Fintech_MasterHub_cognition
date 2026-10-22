@@ -80,3 +80,17 @@ textarea{width:100%;min-height:70px}input:focus,select:focus,textarea:focus{outl
 .bar{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar>span{display:block;height:100%;background:var(--brand)}
 .tile{display:block;color:inherit}.tile:hover{text-decoration:none;border-color:var(--brand)}.tile .kpi-value{font-size:22px}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px}.tabs a{padding:8px 12px;color:var(--muted);font-weight:600;border-bottom:2px solid transparent}.tabs a.active{color:var(--ink);border-color:var(--brand)}.tabs a:hover{text-decoration:none;color:var(--ink)}
+.state-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font-size:12px;font-weight:600}
+.chip:hover{text-decoration:none;border-color:var(--brand)}.chip.active{background:#eef2ff;border-color:var(--brand);color:#3730a3}.chip b{color:var(--muted)}
+.chip-warn{border-color:#fde68a;background:#fffbeb}.chip-bad{border-color:#fecaca;background:#fef2f2;color:#991b1b}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:#94a3b8}.dot-blue{background:#3b82f6}.dot-amber{background:#f59e0b}.dot-green{background:#10b981}.dot-red{background:#ef4444}.dot-purple{background:#8b5cf6}.dot-cyan{background:#06b6d4}
+.quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.crumbs{font-size:12px;color:var(--muted);margin-bottom:6px}
+.integrity{font-weight:600;font-size:12px}.integrity.ok{color:var(--ok)}.integrity.bad{color:var(--bad)}
+.masked{font-family:ui-monospace,Menlo,monospace;color:var(--muted);letter-spacing:.05em}
+.pii-tag{font-size:9px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:4px;vertical-align:middle}
+blockquote{margin:8px 0;padding:8px 12px;border-left:3px solid #f59e0b;background:#fff;border-radius:4px}
+.fe{font-size:10px;background:rgba(255,255,255,.25);padding:0 4px;border-radius:4px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.form-grid .filter-actions{grid-column:1/-1}
+.pre{white-space:pre-wrap}

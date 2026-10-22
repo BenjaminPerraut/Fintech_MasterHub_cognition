@@ -9,7 +9,8 @@ the session**; copy them from the Devin Session Insights page into the table bel
 | Phase | PR | Wall clock (start → PR) | ACUs (from Session Insights) | Notes |
 |-------|----|-------------------------|------------------------------|-------|
 | 0. Plan | – | 20:56 → 20:58 | _fill in_ | Repo was empty; Python 3.10, no Node → server-rendered stack |
-| 1. Foundation | #1 | 20:58 → _see PR_ | _fill in_ | SSO stub, RBAC, hash-chained audit, triggers, security headers, 19 tests |
+| 1. Foundation | [#1](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/1) | 20:58 → 21:01 | _fill in_ | SSO stub, RBAC, hash-chained audit, triggers, security headers, 19 tests |
+| 2. Queue engine + KYC | #2 | 21:01 → 21:04 | _fill in_ | YAML manifest engine, four-eyes (service + DB trigger), record hashes, PII masking/reveal, export, 48 KYC cases, 41 tests total |
 
 ## Corrections, steering, rewrites
 
@@ -18,6 +19,10 @@ the session**; copy them from the Devin Session Insights page into the table bel
 | 1 | 0 | Brief said "three roles" but listed five | Devin | Built five, flagged in plan |
 | 2 | 1 | First draft of the login error path used a `locals()` hack | Devin (self-review) | Rewrote with explicit `identity = None` |
 | 3 | 1 | First draft created the ASGI app at import time | Devin (self-review) | Switched to `uvicorn --factory app.main:create_app` |
+| 4 | 1 | `pkill -f "port 8011"` killed the shell running it (pattern matched itself) | Devin | Re-ran the commit step; no code impact |
+| 5 | 2 | Templates used an `extract` filter that Jinja doesn't ship (it's an Ansible filter) | Devin (before first run) | Registered a 1-line custom filter |
+| 6 | 2 | Role check ran after comment validation, so an unauthorised user got a 400 instead of an audited 403 | Devin (self-review) | Moved the role check first |
+| 7 | 2 | Seeded "closed" relationships could end before they were submitted | Devin (self-review) | Clamp submitted date before relationship end |
 
 ## Places Devin got stuck / needed steering
 
@@ -31,3 +36,6 @@ See also `docs/DECISIONS.md`.
 - External anchoring of the audit head hash (WORM / ledger) → documented only (D-004).
 - No password/MFA in the stub; MFA is assumed at the IdP.
 - No rate limiting on login (IdP handles it in prod).
+- Retention purge job → filter + documented policy only (D-017).
+- Field-level encryption of PII → masking + audited reveal only (D-016).
+- Break-glass access for engineers → not built (D-019).

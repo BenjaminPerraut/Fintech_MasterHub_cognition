@@ -31,7 +31,8 @@ def desk(db: sqlite3.Connection, manifests: dict, user: User) -> dict:
         flagged += [{"m": m, "item": it, "reasons": reasons} for it in hot[:TOP_N]]
         decs = db.execute("SELECT d.*, i.data AS idata FROM decisions d JOIN items i ON i.id = d.item_id"
                           " WHERE i.app = ? AND d.status = 'open' ORDER BY d.proposed_at", (m.key,)).fetchall()
-        mine = [d for d in decs if d["proposed_by"] != user.subject and user.role in m.transition(d["transition"]).approve_roles]
+        mine = [d for d in decs if d["proposed_by"] != user.subject and user.role in m.transition(d["transition"]).approve_roles
+                and not (m.transition(d["transition"]).not_by_creator and store.creator(db, d["item_id"]) == user.subject)]
         approvals += [{"m": m, "d": d, "title": json.loads(d["idata"]).get(m.title_field, d["item_id"])} for d in mine]
         votes = 0
         if m.voting and user.role in m.voting.roles:

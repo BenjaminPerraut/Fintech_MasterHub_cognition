@@ -3,6 +3,7 @@ from __future__ import annotations
 import secrets
 import sqlite3
 import time
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
@@ -68,6 +69,8 @@ async def auth_callback(request: Request, db: sqlite3.Connection = Depends(get_d
                           details={"from": row["role"], "to": role.value, "via": idp.key})
                 db.execute("UPDATE users SET email = ?, name = ?, role = ?, last_login = ? WHERE subject = ?",
                            (identity.email, identity.name, role.value, now, identity.subject))
+            cutoff = (datetime.now(timezone.utc) - timedelta(seconds=request.app.state.settings.session_max_age)).isoformat()
+            db.execute("DELETE FROM sessions WHERE created_at < ?", (cutoff,))
             sid = secrets.token_urlsafe(32)
             db.execute("INSERT INTO sessions (id, subject, created_at) VALUES (?, ?, ?)", (sid, identity.subject, now))
             audit(db, request, None, "auth.login", actor=identity.email, actor_role=role.value,

@@ -131,7 +131,8 @@ def list_items(request: Request, app_key: str, user: User = Depends(current_user
     pending_ids = {r["item_id"]: r for r in db.execute(
         "SELECT d.* FROM decisions d JOIN items i ON i.id = d.item_id WHERE i.app = ? AND d.status = 'open'", (m.key,))}
     awaiting_me = sum(1 for d in pending_ids.values()
-                      if d["proposed_by"] != user.subject and user.role in m.transition(d["transition"]).approve_roles)
+                      if d["proposed_by"] != user.subject and user.role in m.transition(d["transition"]).approve_roles
+                      and not (m.transition(d["transition"]).not_by_creator and store.creator(db, d["item_id"]) == user.subject))
     base_q = {k: v for k, v in params.items() if k != "page"}
     return render(request, "app_list.html", {
         "m": m, "items": items, "total": total, "page": page, "page_size": PAGE_SIZE, "params": params,
@@ -207,8 +208,8 @@ def _detail_ctx(db, request: Request, user: User, m: Manifest, item_id: str, rev
     if any(t.not_by_creator for t in m.transitions) and store.creator(db, item.id) == user.subject:
         acts["transitions"] = [t for t in acts["transitions"] if not t.not_by_creator]
         if decision is not None and m.transition(decision["transition"]).not_by_creator and acts["approve"]:
-            acts["approve"] = acts["reject"] = False
-            acts["approve_block"] = "You created this item: someone else must approve it (segregation of duties)."
+            acts["approve"] = False
+            acts["approve_block"] = "You created this item: someone else must approve it (segregation of duties). You can still reject the proposal."
     return {
         "votes": votes, "tally": tally, "can_vote": can_vote, "vote_block": vote_block,
         "quorum_met": m.voting.passed(tally) if m.voting else True,

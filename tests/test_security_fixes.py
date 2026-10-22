@@ -64,3 +64,43 @@ def test_malformed_version_is_400(sclient):
     login(sclient, "u-1001")
     r = post(sclient, "/apps/kyc/KYC-00001/transition/start_review", {"version": "abc"})
     assert r.status_code == 400
+
+
+def test_legacy_refund_without_created_by_still_blocks_creator(seeded_app):
+    from app.audit import record_event
+    from app.db import transaction
+    conn, m = connect(seeded_app.state.settings.db_path), seeded_app.state.manifests["refunds"]
+    with transaction(conn):
+        item = store.insert_item(conn, app="refunds", item_id="RF-LEGACY", state="in_review", priority=0,
+                                 data={"customer_name": "Old", "customer_id": "C", "transaction_id": "T", "amount": 120,
+                                       "reason": "goodwill"})
+        record_event(conn, actor=SAM.email, actor_role="support", action="item.created", entity_type="item",
+                     entity_id="RF-LEGACY", details={"app": "refunds", "after_hash": item.content_hash, "version": 1})
+    assert store.creator(conn, "RF-LEGACY") == SAM.subject
+    with pytest.raises(service.EngineForbidden, match="segregation"):
+        service.transition(conn, m, SAM, "RF-LEGACY", "approve", "ok")
+
+
+def test_creator_not_prompted_to_approve_but_can_reject(sclient, seeded_app):
+    from app.seed.actors import OLIVIA
+    conn, m = connect(seeded_app.state.settings.db_path), seeded_app.state.manifests["refunds"]
+    item = service.create(conn, m, OMAR, {"customer_name": "Z", "customer_id": "C", "transaction_id": "T",
+                                          "amount": 900, "reason": "goodwill"})
+    service.transition(conn, m, OMAR, item.id, "start_review")
+    service.transition(conn, m, OLIVIA, item.id, "approve", "ok")
+    login(sclient, "u-1004")  # Omar, the creator
+    desk = sclient.get("/").text
+    approvals = desk.split('id="approvals"', 1)[1].split("</table>", 1)[0] if 'id="approvals"' in desk else ""
+    assert f"/{item.id}\"" not in approvals
+    page = sclient.get(f"/apps/refunds/{item.id}").text
+    assert "Reject proposal" in page and "Approve as second reviewer" not in page
+    assert post(sclient, f"/apps/refunds/{item.id}/decision/{store.open_decision(conn, item.id)['id']}/reject",
+                {"comment": "wrong amount"}).status_code == 303
+
+
+def test_expired_sessions_are_pruned_on_login(app, client):
+    conn = connect(app.state.settings.db_path)
+    conn.execute("INSERT INTO sessions (id, subject, created_at) VALUES ('old', 'u-1003', '2020-01-01T00:00:00+00:00')")
+    login(client, "u-1003")
+    assert conn.execute("SELECT COUNT(*) FROM sessions WHERE id = 'old'").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 1

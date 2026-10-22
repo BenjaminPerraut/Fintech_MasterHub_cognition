@@ -40,7 +40,10 @@ def csrf_from(client, path="/login"):
 
 def login(client, subject):
     token = csrf_from(client)
-    r = client.post("/auth/callback", data={"subject": subject, "csrf_token": token, "next": "/"},
+    from app.auth.provider import DEFAULT_DEMO_PASSWORD, STUB_DIRECTORY
+    email = next((d.email for d in STUB_DIRECTORY if d.subject == subject), f"{subject}@unknown.example")
+    r = client.post("/auth/callback", data={"email": email, "password": DEFAULT_DEMO_PASSWORD, "csrf_token": token,
+                                            "next": "/"},
                     follow_redirects=False)
     return r
 

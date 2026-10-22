@@ -15,7 +15,7 @@ uvicorn --factory app.main:create_app --port 8000
 pytest -q
 ```
 
-Open http://localhost:8000 and pick a seeded account on the stub SSO page.
+Open http://localhost:8000 and sign in with a seeded email and the demo password `Northwind-Demo-2026` (override with `MASTERHUB_DEMO_PASSWORD`). Use ◐ in the top bar to switch light / dark mode.
 
 ## Controls
 

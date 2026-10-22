@@ -3,28 +3,36 @@
 {% block public %}
 <div class="login-wrap">
   <div class="login-card">
+    <button type="button" class="btn btn-ghost btn-sm theme-toggle login-theme" data-theme-toggle aria-label="Toggle light / dark mode">◐ Theme</button>
     <div class="login-head">
       <span class="brand-mark lg">N</span>
       <h1>Sign in to Master Hub</h1>
       <p class="muted">Continue with your Northwind Pay workforce account</p>
     </div>
-    {% if idp.stub %}<div class="alert alert-warn"><strong>SANDBOX</strong> · sample data · password-free stub sign-in. This login only exists when the server runs with <code>MASTERHUB_SANDBOX=1</code>; production uses Entra ID / Okta via OIDC (see docs/SSO.md).</div>{% endif %}
+    {% if idp.stub %}<div class="alert alert-warn"><strong>SANDBOX</strong> · sample data · demo sign-in (shared password). This login only exists when the server runs with <code>MASTERHUB_SANDBOX=1</code>; production uses Entra ID / Okta via OIDC (see docs/SSO.md).</div>{% endif %}
     {% if error %}<div class="alert alert-danger">Sign-in refused: {{ error }}</div>{% endif %}
     <div class="sso-provider">{{ idp.provider }}</div>
-    <div class="account-list">
+    <form method="post" action="/auth/callback" class="login-form">
+      {{ csrf_input(request) }}
+      <input type="hidden" name="next" value="{{ next }}">
+      <label>Work email<input type="email" name="email" id="login-email" autocomplete="username" required placeholder="name@northwindpay.example"></label>
+      <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+    </form>
+    {% if idp.accounts %}
+    <details class="demo-accounts" open>
+      <summary>Demo accounts{% if idp.demo_password %} · password <code>{{ idp.demo_password }}</code>{% endif %}</summary>
+      <div class="account-list">
       {% for acct in idp.accounts %}
-      <form method="post" action="/auth/callback" class="account">
-        {{ csrf_input(request) }}
-        <input type="hidden" name="subject" value="{{ acct.subject }}">
-        <input type="hidden" name="next" value="{{ next }}">
-        <button type="submit" class="account-btn">
+        <button type="button" class="account-btn" data-fill-email="{{ acct.email }}"{% if idp.demo_password %} data-fill-password="{{ idp.demo_password }}"{% endif %}>
           <span class="avatar">{{ acct.name.split()|map('first')|join('') }}</span>
           <span class="account-meta"><strong>{{ acct.name }}</strong><small>{{ acct.email }}</small></span>
           <span class="account-title">{{ acct.title }}</span>
         </button>
-      </form>
       {% endfor %}
-    </div>
+      </div>
+    </details>
+    {% endif %}
     <p class="login-foot muted">Protected by MFA at the identity provider · Session expires after 8h</p>
   </div>
 </div>

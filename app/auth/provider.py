@@ -6,9 +6,16 @@ two methods with OIDC (authorization-code + PKCE) – see docs/SSO.md.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
+import os
+import secrets
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import lru_cache
 
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 
@@ -21,7 +28,11 @@ class Identity:
 
 
 class AuthenticationError(Exception):
-    pass
+    """`str(exc)` is shown to the user; `audit_reason` (if set) is what goes in the audit log."""
+
+    def __init__(self, message: str, audit_reason: str | None = None):
+        super().__init__(message)
+        self.audit_reason = audit_reason or message
 
 
 class IdentityProvider(ABC):
@@ -60,22 +71,70 @@ STUB_DIRECTORY: tuple[DirectoryEntry, ...] = (
 )
 
 
+DEFAULT_DEMO_PASSWORD = "Northwind-Demo-2026"
+MAX_FAILURES = 5
+LOCKOUT_SECONDS = 300
+
+
+def _scrypt(password: str, salt: bytes) -> bytes:
+    return hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+
+
+@lru_cache(maxsize=8)
+def _hashed(password: str, emails: tuple[str, ...]) -> dict[str, tuple[bytes, bytes]]:
+    """Per-user salted scrypt hashes, computed once per process. Plaintext is never stored."""
+    out = {}
+    for e in emails:
+        salt = secrets.token_bytes(16)
+        out[e] = (salt, _scrypt(password, salt))
+    return out
+
+
+_DUMMY_SALT = secrets.token_bytes(16)
+
+
 class StubDirectoryProvider(IdentityProvider):
+    """Sandbox-only directory with email + password sign-in (shared demo password, scrypt-hashed).
+
+    Brute force: 5 failures within 5 minutes lock the email for 5 minutes from the 5th failure; the lockout
+    answers with the same generic error so it doesn't reveal account state. Real deployments use Entra ID / Okta (MFA at the IdP).
+    """
     key = "stub"
     display_name = "Northwind SSO (stub)"
 
-    def __init__(self, directory: tuple[DirectoryEntry, ...] = STUB_DIRECTORY):
-        self._by_subject = {d.subject: d for d in directory}
+    def __init__(self, directory: tuple[DirectoryEntry, ...] = STUB_DIRECTORY, demo_password: str | None = None):
         self._directory = directory
+        self._by_email = {d.email.lower(): d for d in directory}
+        password = demo_password or os.environ.get("MASTERHUB_DEMO_PASSWORD") or DEFAULT_DEMO_PASSWORD
+        self._show_password = password == DEFAULT_DEMO_PASSWORD
+        self._hashes = _hashed(password, tuple(sorted(self._by_email)))
+        self._failures: dict[str, tuple[int, float, float]] = {}
 
     def login_context(self) -> dict:
-        return {"accounts": self._directory, "provider": self.display_name, "stub": True}
+        return {"accounts": self._directory, "provider": self.display_name, "stub": True,
+                "demo_password": DEFAULT_DEMO_PASSWORD if self._show_password else None}
 
     async def authenticate(self, request: Request) -> Identity:
         form = await request.form()
-        entry = self._by_subject.get(str(form.get("subject", "")))
-        if entry is None:
-            raise AuthenticationError("unknown account")
+        email = str(form.get("email", "")).strip().lower()[:200]
+        password = str(form.get("password", ""))[:200]
+        now = time.time()
+        count, window_start, locked_until = self._failures.get(email, (0, now, 0.0))
+        if locked_until > now:
+            raise AuthenticationError("invalid email or password", audit_reason="locked out")
+        if locked_until or now - window_start >= LOCKOUT_SECONDS:
+            count, window_start = 0, now
+        salt, expected = self._hashes.get(email, (_DUMMY_SALT, b""))
+        digest = await run_in_threadpool(_scrypt, password, salt)
+        ok = hmac.compare_digest(digest, expected) and email in self._by_email
+        if not ok:
+            count += 1
+            if len(self._failures) > 10_000:
+                self._failures.clear()
+            self._failures[email] = (count, window_start, now + LOCKOUT_SECONDS if count >= MAX_FAILURES else 0.0)
+            raise AuthenticationError("invalid email or password")
+        self._failures.pop(email, None)
+        entry = self._by_email[email]
         return Identity(entry.subject, entry.email, entry.name, entry.groups)
 
 

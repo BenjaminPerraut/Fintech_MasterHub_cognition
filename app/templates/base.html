@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Master Hub{% endblock %} · Northwind Pay</title>
   <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/theme.js"></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -27,6 +28,7 @@
       <div class="topbar-right">
         <div class="who"><span class="avatar">{{ user.initials }}</span><div><strong>{{ user.name }}</strong><small>{{ user.email }}</small></div></div>
         <span class="role-badge role-{{ user.role }}">{{ user.role_label }}</span>
+        <button type="button" class="btn btn-ghost btn-sm theme-toggle" data-theme-toggle aria-label="Toggle light / dark mode">◐</button>
         <form method="post" action="/logout">{{ csrf_input(request) }}<button class="btn btn-ghost btn-sm" type="submit">Sign out</button></form>
       </div>
     </header>

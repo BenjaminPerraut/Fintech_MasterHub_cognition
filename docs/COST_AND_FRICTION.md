@@ -55,14 +55,50 @@ Honest friction points on Devin's side:
 
 **Lesson from 14 to 16:** green tests and a localhost check aren't enough. The demo has to be checked through the same path the user takes: the preview proxy, their browser (iPad Safari, dark mode) and their network. Automated tests and the recorded demo all ran on the VM, so none of them could catch these issues.
 
+## Time log: build to checks (VM clock, UTC, 22 Oct 2026)
+
+Sources: git commit times and session timestamps. Wall clock includes time Devin spent waiting on you; "active" is Devin's own estimate of time spent working.
+
+| Step | Window (UTC) | Wall clock | What |
+|------|--------------|-----------|------|
+| Plan | 20:56 → 20:58 | 2 min | Read empty repo, phased plan, approval |
+| Phase 1 Foundation (#1) | 20:58 → 21:00 | 3 min | SSO stub, RBAC, audit chain, headers |
+| Phase 2 Queue engine + KYC (#2) | 21:00 → 21:04 | 3 min | YAML engine, four-eyes, 48 KYC cases |
+| Phase 3 Refunds + flags (#3) | 21:04 → 21:07 | 3 min | Refunds, voting, rollout |
+| Phase 4 Fraud + transfers (#4) | 21:07 → 21:09 | 2 min | Rules, alert queues |
+| Phase 5 Desk + skill + docs (#5) | 21:09 → 21:11 | 2 min | Hub desk, new-app skill, docs |
+| **Build subtotal** | **20:56 → 21:11** | **~15 min** | 5 PRs, 79 tests |
+| Recorded browser demo (testing agent) | 21:11 → 21:21 | ~10 min | 6 README flows as each role, 2.5-min video |
+| Security + bug review of all PRs | 21:11 → 21:22 | ~11 min (in parallel with the demo) | Review report: 2 High, 5 Medium, 8 Low |
+| Security fixes (#6) | 21:22 → 21:27 | ~5 min | Sandbox gating, session revocation, refund segregation of duties |
+| Preview: DNS check, invisible names fix | 21:28 → 21:37 | ~9 min | Mostly waiting on screenshots |
+| Devin Review fixes on #6 + merge #2–#6 | 21:37 → 21:39 | ~2 min | 4 findings fixed, 91 tests |
+| "bad origin" root cause + fix (#7) | 21:39 → 21:41 | ~2 min | Referrer-Policy, friction log |
+| Email/password sign-in + light/dark (#8) | 21:43 → 21:48 | ~5 min | 96 tests, screenshots, PR |
+| Demo-account button fills password, this log | 21:50 → 21:55 | ~5 min | Fix + docs |
+| **Total so far** | **20:56 → ~21:55** | **~60 min** | 8 PRs, 97 tests |
+
+## Cost estimate (not measured)
+
+Devin can't read its own usage from inside the session. The real figure is at Settings → Usage & limits (self-serve) or
+Settings → Consumption (Enterprise, ACUs). Per the Devin docs, ACU consumption depends on tokens, the model, and VM/infra time,
+so there's no fixed rate per minute.
+
+Rough order of magnitude only: about 60 min of agent wall clock (Devin + testing agent + Devin Review runs). Under the older
+public rule of thumb of roughly 15 min of agent work per ACU at about $2 to $2.25 per ACU, that's **about 4 to 8 ACUs, i.e. roughly
+$10 to $20**. Replace this with the real number from the usage page.
+
+For the business case: the brief's Power Apps spend is about $250K a year. This session produced 5 internal apps + a hub in about 1 hour of agent
+time. The ongoing cost of owning the code (hosting, a real IdP integration, maintenance, security review by humans) is not
+included here and would dominate the agent cost.
+
 ## Features cut or simplified under the 2-hour limit
 
 See also `docs/DECISIONS.md`.
 
 - Real OIDC (Entra/Okta) → stub provider + interface + `docs/SSO.md`.
 - External anchoring of the audit head hash (WORM / ledger) → documented only (D-004).
-- No password/MFA in the stub; MFA is assumed at the IdP.
-- No rate limiting on login (IdP handles it in prod).
+- Sandbox stub has a shared demo password (scrypt-hashed, 5-failure lockout) but no MFA; MFA is assumed at the IdP (D-042).
 - Retention purge job → filter + documented policy only (D-017).
 - Field-level encryption of PII → masking + audited reveal only (D-016).
 - Break-glass access for engineers → not built (D-019).

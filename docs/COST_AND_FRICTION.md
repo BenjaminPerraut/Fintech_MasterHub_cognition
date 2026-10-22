@@ -13,6 +13,7 @@ the session**; copy them from the Devin Session Insights page into the table bel
 | 2. Queue engine + KYC | [#2](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/2) | 21:01 → 21:04 | _fill in_ | YAML manifest engine, four-eyes (service + DB trigger), record hashes, PII masking/reveal, export, 48 KYC cases, 41 tests total |
 | 3. Refunds + Feature flags | [#3](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/3) | 21:04 → 21:06 | _fill in_ | Conditional four-eyes (≥ €500), payout step, voting with quorum, rollout via four-eyes, kill switch, 63 refunds + 14 flags, 60 tests total |
 | 4. Fraud payments + Transfer flags | [#4](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/4) | 21:06 → 21:08 | _fill in_ | Rules engine over append-only ledger, 2 alert queues, four-eyes closure, Ops Lead scan/simulate, 73 tests total |
+| 6. Security & bug fixes from post-build review | #6 | after review | _fill in_ | Sandbox gating, session revocation, refund segregation of duties, IBAN not typeable, 400s, 88 tests total |
 | 5. Hub desk + new-app skill + docs | #5 | 21:08 → 21:11 | _fill in_ | Cross-app desk (RBAC-filtered, four-eyes-aware), `.devin/skills/new-internal-app`, final docs, 79 tests total |
 
 **Total so far:** about 15 minutes of VM wall-clock time from plan to the last PR (20:56 → 21:11 UTC on the VM clock).
@@ -33,6 +34,7 @@ the number least worth trusting: use the **ACUs from Session Insights** as the r
 | 8 | 3 | Test asserted pretty-printed JSON, but audit details are canonical (compact) JSON | Devin (test run) | Assert on parsed JSON |
 | 9 | 4 | "Relative" high-amount rule (10x median) alone would flag ordinary €300 purchases | Devin (design, before code) | Added `min_amount_eur: 1000` floor to the rule |
 | 10 | 4 | Considered a separate `rule_hits` table for dedupe; its insert couldn't share the alert's transaction | Devin (design) | Simplified: `rule_key` stored on the alert itself (D-029) |
+| 12 | 6 | Post-build security review (requested by you) found 2 High + 5 Medium issues in my own code: stub login default, refund self-approval to a typed IBAN, unrevocable sessions, simulation/seeding not sandbox-gated, ephemeral key per worker, 500s on bad input | Devin (review), 1 also flagged by Devin Review | Fixed in #6; Low findings left in the review report |
 | 11 | 5 | Desk test assumed engineer Erin still had flags to vote on, but the seed has her voting on (or authoring) all of them | Devin (test run) | Asserted the vote prompt for the admin instead; the seed was right, the test was wrong |
 
 ## Places Devin got stuck / needed steering

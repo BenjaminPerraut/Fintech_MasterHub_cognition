@@ -48,6 +48,8 @@ fields:
 
 ### Non-negotiable control checklist
 - [ ] Every money-moving, customer-impacting or alert-closing transition is `four_eyes` or `four_eyes_if`.
+- [ ] Approving or paying out something a person created uses `not_by_creator: true` (segregation of duties).
+- [ ] Never let staff type where money goes (payout accounts come from records, or need a four-eyes change flow).
 - [ ] Protective actions (hold, freeze, rollback) may be single-person but `require_comment: true`.
 - [ ] Rejections/denials `require_comment: true`.
 - [ ] PII fields have `pii: true`; `reveal_pii` and `export` are as narrow as possible.

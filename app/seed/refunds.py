@@ -80,7 +80,7 @@ def seed(conn, m: Manifest) -> None:
                               created_at=f"{d['requested_at']}T{rng.randint(8, 18):02d}:{rng.randint(0, 59):02d}:00+00:00")
         if target == "requested":
             continue
-        worker = SAM if target in ("escalated", "pending_approve") or rng.random() < 0.75 else OMAR
+        worker = SAM if target == "escalated" or rng.random() < 0.75 else OMAR
         service.claim(conn, m, worker, item.id)
         service.transition(conn, m, worker, item.id, "start_review")
         if target == "in_review":
@@ -93,9 +93,9 @@ def seed(conn, m: Manifest) -> None:
         elif target == "denied":
             service.transition(conn, m, worker, item.id, "deny", "Merchant confirmed delivery (signed tracking). Customer advised to contact merchant.")
         elif target == "pending_approve":
-            service.transition(conn, m, worker, item.id, "approve", "Duplicate charge confirmed in ledger. Above €500, so needs Ops Lead approval.")
+            service.transition(conn, m, OMAR, item.id, "approve", "Duplicate charge confirmed in ledger. Above €500, so a second Ops Lead must approve.")
         else:
-            res = service.transition(conn, m, worker, item.id, "approve", "Verified against ledger and merchant records.")
+            res = service.transition(conn, m, OMAR, item.id, "approve", "Verified against ledger and merchant records.")
             if res == "proposed":
                 dec = store.open_decision(conn, item.id)
                 service.approve(conn, m, OLIVIA, item.id, dec["id"], "Evidence reviewed independently. Approved.")

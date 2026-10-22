@@ -26,31 +26,31 @@ def flags(seeded_app):
     return seeded_app.state.manifests["flags"]
 
 
-def new_refund(conn, m, amount, actor=SAM):
-    item = service.create(conn, m, actor, {"customer_name": "Test Customer", "customer_id": "C-1",
-                                           "transaction_id": "TX-1", "amount": amount, "reason": "duplicate_charge"})
-    service.transition(conn, m, actor, item.id, "start_review")
+def new_refund(conn, m, amount, creator=SAM):
+    item = service.create(conn, m, creator, {"customer_name": "Test Customer", "customer_id": "C-1",
+                                             "transaction_id": "TX-1", "amount": amount, "reason": "duplicate_charge"})
+    service.transition(conn, m, creator, item.id, "start_review")
     return item.id
 
 
-# ---- refunds: conditional four-eyes ---------------------------------------
+# ---- refunds: conditional four-eyes + segregation of duties -----------------
 
 @pytest.mark.parametrize("amount,expected", [(120, "applied"), (499.99, "applied"), (500, "proposed"), (4200, "proposed")])
 def test_refund_four_eyes_threshold(seeded_app, refunds, amount, expected):
     conn = db(seeded_app)
     rid = new_refund(conn, refunds, amount)
-    assert service.transition(conn, refunds, SAM, rid, "approve", "verified") == expected
+    assert service.transition(conn, refunds, OMAR, rid, "approve", "verified") == expected
     assert store.get_item(conn, "refunds", rid).state == ("approved" if expected == "applied" else "in_review")
 
 
-def test_large_refund_needs_ops_lead_and_not_proposer(seeded_app, refunds):
+def test_large_refund_needs_second_ops_lead_and_payout_by_ops(seeded_app, refunds):
     conn = db(seeded_app)
     rid = new_refund(conn, refunds, 900)
-    service.transition(conn, refunds, SAM, rid, "approve", "dup charge")
+    service.transition(conn, refunds, OMAR, rid, "approve", "dup charge")
     dec = store.open_decision(conn, rid)
     with pytest.raises(service.EngineForbidden, match="four-eyes"):
-        service.approve(conn, refunds, SAM, rid, dec["id"])
-    service.approve(conn, refunds, OMAR, rid, dec["id"])
+        service.approve(conn, refunds, OMAR, rid, dec["id"])
+    service.approve(conn, refunds, OLIVIA, rid, dec["id"])
     with pytest.raises(service.EngineForbidden):
         service.transition(conn, refunds, SAM, rid, "execute_payout")
     service.transition(conn, refunds, OMAR, rid, "execute_payout")
@@ -59,14 +59,15 @@ def test_large_refund_needs_ops_lead_and_not_proposer(seeded_app, refunds):
     assert "amount >= 500" in proposed["details"]
 
 
-def test_ops_lead_large_refund_needs_another_ops_lead(seeded_app, refunds):
+def test_refund_creator_can_never_approve(seeded_app, refunds):
     conn = db(seeded_app)
-    rid = new_refund(conn, refunds, 2500, actor=OMAR)
-    service.transition(conn, refunds, OMAR, rid, "approve", "ok")
-    dec = store.open_decision(conn, rid)
-    with pytest.raises(service.EngineForbidden):
-        service.approve(conn, refunds, OMAR, rid, dec["id"])
-    service.approve(conn, refunds, OLIVIA, rid, dec["id"])
+    rid = new_refund(conn, refunds, 120)              # Sam logs a small refund...
+    with pytest.raises(service.EngineForbidden, match="segregation"):
+        service.transition(conn, refunds, SAM, rid, "approve", "ok")   # ...and can't approve it himself
+    big = new_refund(conn, refunds, 2500, creator=OMAR)  # an Ops Lead logs a large one
+    service.transition(conn, refunds, OLIVIA, big, "approve", "ok")
+    with pytest.raises(service.EngineForbidden, match="segregation"):  # and can't be the second approver either
+        service.approve(conn, refunds, OMAR, big, store.open_decision(conn, big)["id"])
 
 
 def test_refund_rbac(seeded_app, refunds):

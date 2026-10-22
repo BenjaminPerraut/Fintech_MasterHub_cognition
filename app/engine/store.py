@@ -188,6 +188,20 @@ def created_by(conn: sqlite3.Connection, item_id: str) -> str | None:
     return row["actor"] if row else None
 
 
+def creator(conn: sqlite3.Connection, item_id: str) -> str | None:
+    """Creator's IdP subject (stable even if their email changes), from the item.created audit event."""
+    row = conn.execute("SELECT actor, details FROM audit_log WHERE entity_type = 'item' AND entity_id = ?"
+                       " AND action = 'item.created' ORDER BY id LIMIT 1", (item_id,)).fetchone()
+    if row is None:
+        return None
+    subject = json.loads(row["details"]).get("created_by")
+    if subject:
+        return subject
+    # Events written before created_by existed: resolve the actor's email (fail closed if unknown).
+    user = conn.execute("SELECT subject FROM users WHERE email = ?", (row["actor"],)).fetchone()
+    return user["subject"] if user else f"unknown:{row['actor']}"
+
+
 def history_for(conn: sqlite3.Connection, item_id: str) -> list[sqlite3.Row]:
     return conn.execute("SELECT * FROM audit_log WHERE entity_type = 'item' AND entity_id = ? ORDER BY id DESC",
                         (item_id,)).fetchall()

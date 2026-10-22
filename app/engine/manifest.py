@@ -53,6 +53,7 @@ class TransitionDef:
     confirm: str = ""
     four_eyes_if: tuple | None = None  # (field, threshold): four-eyes only when data[field] >= threshold
     requires_quorum: bool = False
+    not_by_creator: bool = False  # segregation of duties: whoever created the item can't perform/approve this
     set: dict = field(default_factory=dict)  # data fields written when the transition is applied
 
     def needs_four_eyes(self, data: dict) -> bool:
@@ -226,6 +227,7 @@ def parse_manifest(raw: dict) -> Manifest:
             roles=_roles(t["roles"], where), four_eyes=four_eyes, approve_roles=approve_roles,
             require_comment=bool(t.get("require_comment")), style=t.get("style", ""), confirm=t.get("confirm", ""),
             four_eyes_if=fe_if or None, requires_quorum=bool(t.get("requires_quorum")), set=set_,
+            not_by_creator=bool(t.get("not_by_creator")),
         ))
 
     perms = raw.get("permissions", {})

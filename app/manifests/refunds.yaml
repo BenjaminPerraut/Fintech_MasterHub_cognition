@@ -37,9 +37,10 @@ transitions:
     roles: [support, ops_lead]
     four_eyes_if: {field: amount, gte: 500}
     approve_roles: [ops_lead]
+    not_by_creator: true          # whoever logged the refund can never approve it
     style: ok
   - {name: deny, label: Deny refund, from: [in_review, escalated], to: denied, roles: [support, ops_lead], require_comment: true, style: danger}
-  - {name: execute_payout, label: Execute payout, from: approved, to: paid, roles: [ops_lead], style: ok}
+  - {name: execute_payout, label: Execute payout, from: approved, to: paid, roles: [ops_lead], not_by_creator: true, style: ok}
 
 quick_filters:
   - {label: "High value ≥ €500 (open)", params: {f_amount_min: "500", open: "1"}}
@@ -53,7 +54,7 @@ fields:
   - {name: customer_name, label: Customer, section: Customer, list: true, input: true, required: true}
   - {name: customer_id, label: Customer ID, section: Customer, input: true, required: true}
   - {name: customer_email, label: Email, pii: true, section: Customer, input: true}
-  - {name: iban, label: Refund IBAN, pii: true, section: Customer, input: true}
+  - {name: iban, label: Refund IBAN (from payment record), pii: true, section: Customer, help: Refunds go back to the original payment method. Staff can't type a payout IBAN.}
   - {name: customer_tenure_months, label: Tenure (months), type: number, section: Customer}
   - name: kyc_status
     label: KYC status

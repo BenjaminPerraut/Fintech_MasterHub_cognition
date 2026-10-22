@@ -9,6 +9,7 @@ The screens are the easy part; this repo focuses on the controls a fintech can't
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
+export MASTERHUB_SANDBOX=1   # demo mode: stub SSO + sample data. Without it the app refuses demo-only settings
 export MASTERHUB_SECRET_KEY=$(python3 -c 'import secrets;print(secrets.token_urlsafe(48))')
 uvicorn --factory app.main:create_app --port 8000
 pytest -q
@@ -40,7 +41,7 @@ Open http://localhost:8000 and pick a seeded account on the stub SSO page.
 | App | KYC Analyst | Ops Lead | Support | Engineer | Admin |
 |-----|-------------|----------|---------|----------|-------|
 | KYC review | work, approve customers | work, approve rejections / reopen, export | read (masked) | none | none |
-| Refunds | none | work, 2nd approval ≥ €500, payout, export | create, work | none | none |
+| Refunds | none | work, 2nd approval ≥ €500, payout, export (never on refunds they logged) | create, work (never approve own) | none | none |
 | Feature flags | none | vote, accept, approve promote/retire | read | create, vote, canary, rollback | vote, approve retire |
 | Fraud payments | work, propose closure | work, 2nd approval | read (masked) | none | none |
 | Transfer flags | work, hold, propose release/block | work, 2nd approval | read (masked) | none | none |
@@ -51,10 +52,10 @@ Open http://localhost:8000 and pick a seeded account on the stub SSO page.
 
 1. Log in as **Alice** (KYC Analyst) and open a KYC case in review. Propose "Approve customer" and notice you can't approve it yourself.
 2. Log in as **Karim**: the desk shows it under *Needs your approval*. Approve it, and the audit trail shows both names.
-3. Log in as **Sam** (Support) and create a €900 refund, then approve it: it becomes a proposal. **Omar** approves, then executes the payout.
+3. Log in as **Sam** (Support) and create a €900 refund: Sam can't approve his own refund. **Omar** approves it, which only creates a proposal (≥ €500). **Olivia** approves, then Omar executes the payout.
 4. Log in as **Olivia** (Ops Lead) and open *Detection rules*. Click *4 card payments in 24 seconds* and a new Fraud alert appears on the desk.
 5. Log in as **Erin** (Engineer): only Feature Flags is visible, and the KYC/refund URLs return 403 (audited).
-6. Open `/audit/verify` as **Olivia**: the chain and every record match. Edit a row with `sqlite3 data/masterhub.db` and reload to see it flagged.
+6. Open `/audit/verify` as **Olivia**: the chain and every record match. Edit a row out of band, e.g. `python3 -c "import sqlite3; sqlite3.connect('data/masterhub.db').execute(\"UPDATE items SET state='approved' WHERE id='KYC-00002'\").connection.commit()"`, and reload to see it flagged.
 
 ## Seeded accounts
 

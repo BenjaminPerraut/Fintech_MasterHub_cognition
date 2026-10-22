@@ -27,13 +27,13 @@
     <p><strong>{{ decision.proposed_by_name }}</strong> ({{ ROLE_LABELS.get(decision.proposed_role) }}) proposed <strong>{{ m.transition(decision.transition).label }}</strong> → <span class="badge badge-{{ m.states[m.transition(decision.transition).to].color }}">{{ m.states[m.transition(decision.transition).to].label }}</span> on {{ decision.proposed_at[:16].replace('T',' ') }} UTC</p>
     {% if decision.comment %}<blockquote>“{{ decision.comment }}”</blockquote>{% endif %}
     {% if acts.approve_block %}<div class="alert alert-info">{{ acts.approve_block }}</div>{% endif %}
-    {% if acts.approve or acts.withdraw %}
+    {% if acts.approve or acts.reject or acts.withdraw %}
     <form method="post">
       {{ csrf_input(request) }}
-      {% if acts.approve %}<label class="small muted">Comment (required to reject)<textarea name="comment" maxlength="4000"></textarea></label>{% endif %}
+      {% if acts.approve or acts.reject %}<label class="small muted">Comment (required to reject)<textarea name="comment" maxlength="4000"></textarea></label>{% endif %}
       <div class="actions">
-        {% if acts.approve %}<button class="btn btn-ok" formaction="/apps/{{ m.key }}/{{ item.id }}/decision/{{ decision.id }}/approve">✓ Approve as second reviewer</button>
-        <button class="btn btn-danger" formaction="/apps/{{ m.key }}/{{ item.id }}/decision/{{ decision.id }}/reject">✕ Reject proposal</button>{% endif %}
+        {% if acts.approve %}<button class="btn btn-ok" formaction="/apps/{{ m.key }}/{{ item.id }}/decision/{{ decision.id }}/approve">✓ Approve as second reviewer</button>{% endif %}
+        {% if acts.reject %}<button class="btn btn-danger" formaction="/apps/{{ m.key }}/{{ item.id }}/decision/{{ decision.id }}/reject">✕ Reject proposal</button>{% endif %}
         {% if acts.withdraw %}<button class="btn" formaction="/apps/{{ m.key }}/{{ item.id }}/decision/{{ decision.id }}/withdraw">Withdraw my proposal</button>{% endif %}
       </div>
     </form>

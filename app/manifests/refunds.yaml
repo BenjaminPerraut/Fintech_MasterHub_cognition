@@ -7,6 +7,7 @@ description: Customer refund requests. Refunds of €500 or more need an Ops Lea
 id_prefix: RF
 title_field: customer_name
 priority_field: refund_risk
+desk: {min_priority: 60, reason_fields: [reason, risk_flag]}   # what the Master Hub desk flags
 initial: requested
 
 permissions:

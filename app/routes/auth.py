@@ -44,7 +44,7 @@ async def auth_callback(request: Request, db: sqlite3.Connection = Depends(get_d
         actor = identity.email if identity else "anonymous"
         with transaction(db):
             audit(db, request, None, "auth.login_refused", actor=actor,
-                  details={"reason": str(exc), "attempted_email": str(form.get("email", ""))[:200]})
+                  details={"reason": getattr(exc, "audit_reason", str(exc)), "attempted_email": str(form.get("email", ""))[:200]})
         return render(request, "login.html", {"idp": idp.login_context(), "next": nxt, "error": str(exc)},
                       status_code=403)
 

@@ -15,6 +15,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import lru_cache
 
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 
@@ -27,7 +28,11 @@ class Identity:
 
 
 class AuthenticationError(Exception):
-    pass
+    """`str(exc)` is shown to the user; `audit_reason` (if set) is what goes in the audit log."""
+
+    def __init__(self, message: str, audit_reason: str | None = None):
+        super().__init__(message)
+        self.audit_reason = audit_reason or message
 
 
 class IdentityProvider(ABC):
@@ -91,7 +96,8 @@ _DUMMY_SALT = secrets.token_bytes(16)
 class StubDirectoryProvider(IdentityProvider):
     """Sandbox-only directory with email + password sign-in (shared demo password, scrypt-hashed).
 
-    Brute force: 5 failures per email lock it for 5 minutes. Real deployments use Entra ID / Okta (MFA at the IdP).
+    Brute force: 5 failures within 5 minutes lock the email for 5 minutes from the 5th failure; the lockout
+    answers with the same generic error so it doesn't reveal account state. Real deployments use Entra ID / Okta (MFA at the IdP).
     """
     key = "stub"
     display_name = "Northwind SSO (stub)"
@@ -102,7 +108,7 @@ class StubDirectoryProvider(IdentityProvider):
         password = demo_password or os.environ.get("MASTERHUB_DEMO_PASSWORD") or DEFAULT_DEMO_PASSWORD
         self._show_password = password == DEFAULT_DEMO_PASSWORD
         self._hashes = _hashed(password, tuple(sorted(self._by_email)))
-        self._failures: dict[str, tuple[int, float]] = {}
+        self._failures: dict[str, tuple[int, float, float]] = {}
 
     def login_context(self) -> dict:
         return {"accounts": self._directory, "provider": self.display_name, "stub": True,
@@ -113,15 +119,19 @@ class StubDirectoryProvider(IdentityProvider):
         email = str(form.get("email", "")).strip().lower()[:200]
         password = str(form.get("password", ""))[:200]
         now = time.time()
-        count, since = self._failures.get(email, (0, now))
-        if now - since >= LOCKOUT_SECONDS:
-            count, since = 0, now
-        if count >= MAX_FAILURES:
-            raise AuthenticationError("too many failed attempts for this account; try again in 5 minutes")
+        count, window_start, locked_until = self._failures.get(email, (0, now, 0.0))
+        if locked_until > now:
+            raise AuthenticationError("invalid email or password", audit_reason="locked out")
+        if locked_until or now - window_start >= LOCKOUT_SECONDS:
+            count, window_start = 0, now
         salt, expected = self._hashes.get(email, (_DUMMY_SALT, b""))
-        ok = hmac.compare_digest(_scrypt(password, salt), expected) and email in self._by_email
+        digest = await run_in_threadpool(_scrypt, password, salt)
+        ok = hmac.compare_digest(digest, expected) and email in self._by_email
         if not ok:
-            self._failures[email] = (count + 1, since)
+            count += 1
+            if len(self._failures) > 10_000:
+                self._failures.clear()
+            self._failures[email] = (count, window_start, now + LOCKOUT_SECONDS if count >= MAX_FAILURES else 0.0)
             raise AuthenticationError("invalid email or password")
         self._failures.pop(email, None)
         entry = self._by_email[email]

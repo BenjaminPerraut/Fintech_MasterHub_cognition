@@ -111,3 +111,5 @@ blockquote{margin:8px 0;padding:8px 12px;border-left:3px solid #f59e0b;backgroun
 .login-form{display:flex;flex-direction:column;gap:10px;margin:8px 0 14px}.login-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}.login-form input{width:100%}
 .btn-block{width:100%;justify-content:center;padding:10px}
 .demo-accounts summary{cursor:pointer;font-size:12px;color:var(--muted);margin-bottom:8px}
+:root[data-theme="dark"] .table td.details code{color:#cbd5e1}
+:root[data-theme="dark"] .verify-banner.ok{border-color:#065f46;color:#6ee7b7}:root[data-theme="dark"] .verify-banner.bad{border-color:#7f1d1d;color:#fca5a5}

@@ -1,0 +1,8 @@
+# Pinned to latest stable releases as of Oct 2026. Upgrade deliberately; run `pip-audit` before bumping.
+fastapi==0.161.0
+starlette==1.7.0
+uvicorn==0.54.0
+Jinja2==3.1.6
+PyYAML==6.0.3
+itsdangerous==2.2.0
+python-multipart==0.0.32

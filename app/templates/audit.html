@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_macros.html" import audit_table %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Audit log</h1><p class="muted">Append-only, hash-chained. {{ total }} matching events.</p></div>
+  <a class="btn" href="/audit/verify">Verify chain</a>
+</div>
+<form class="filters card" method="get">
+  <label>Actor<input name="actor" value="{{ filters.actor }}" placeholder="email"></label>
+  <label>Action<select name="action"><option value="">Any</option>{% for a in actions %}<option {% if a == filters.action %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></label>
+  <label>Entity type<input name="entity_type" value="{{ filters.entity_type }}"></label>
+  <label>Entity id<input name="entity_id" value="{{ filters.entity_id }}"></label>
+  <label>From<input type="date" name="date_from" value="{{ filters.date_from }}"></label>
+  <label>To<input type="date" name="date_to" value="{{ filters.date_to }}"></label>
+  <div class="filter-actions"><button class="btn btn-primary" type="submit">Filter</button><a class="btn btn-ghost" href="/audit">Reset</a></div>
+</form>
+<div class="card table-card">{{ audit_table(rows) }}</div>
+<div class="pager">
+  {% set q = filters | dictsort | map('join', '=') | join('&') %}
+  {% if page > 1 %}<a class="btn btn-ghost btn-sm" href="?{{ q }}&page={{ page - 1 }}">← Newer</a>{% endif %}
+  <span class="muted">Page {{ page }}</span>
+  {% if page * page_size < total %}<a class="btn btn-ghost btn-sm" href="?{{ q }}&page={{ page + 1 }}">Older →</a>{% endif %}
+</div>
+{% endblock %}

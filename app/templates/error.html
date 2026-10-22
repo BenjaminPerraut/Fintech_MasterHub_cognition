@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ status }}{% endblock %}
+{% macro body() %}
+<div class="error-box">
+  <div class="error-code">{{ status }}</div>
+  <h1>{% if status == 403 %}Access denied{% elif status == 404 %}Not found{% elif status == 409 %}Conflict{% else %}Request refused{% endif %}</h1>
+  <p class="muted">{{ detail }}</p>
+  {% if status == 403 %}<p class="muted small">This refusal has been recorded in the audit log.</p>{% endif %}
+  <a class="btn" href="/">Back to Master Hub</a>
+</div>
+{% endmacro %}
+{% block content %}{{ body() }}{% endblock %}
+{% block public %}<div class="login-wrap">{{ body() }}</div>{% endblock %}

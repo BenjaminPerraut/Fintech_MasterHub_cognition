@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_macros.html" import short_hash %}
+{% block title %}Verify audit chain{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Audit chain verification</h1><p class="muted">Recomputes every SHA-256 link from genesis and checks the append-only triggers.</p></div></div>
+<div class="verify-banner {% if result.ok %}ok{% else %}bad{% endif %}">
+  <div class="verify-icon">{% if result.ok %}✓{% else %}✕{% endif %}</div>
+  <div>
+    <h2>{% if result.ok %}Chain intact{% else %}Integrity failure{% endif %}</h2>
+    <p>{% if result.ok %}{{ result.count }} events verified. No row was modified, removed or re-ordered.{% else %}{{ result.reason }}{% if result.first_bad_id %} — first bad row: <strong>#{{ result.first_bad_id }}</strong>{% endif %}{% endif %}</p>
+  </div>
+</div>
+<div class="grid-3">
+  <div class="card kpi"><span class="kpi-label">Events checked</span><span class="kpi-value">{{ result.count }}</span></div>
+  <div class="card kpi"><span class="kpi-label">Head hash</span><span class="kpi-value small mono">{{ short_hash(result.head_hash) }}</span></div>
+  <div class="card kpi"><span class="kpi-label">UPDATE/DELETE triggers</span><span class="kpi-value {% if result.triggers_present %}text-ok{% else %}text-bad{% endif %}">{% if result.triggers_present %}Active{% else %}Missing{% endif %}</span></div>
+</div>
+{% if result.record_issues %}
+<div class="card"><h3>Records changed outside the audited workflow</h3>
+<table class="table"><thead><tr><th>Record</th><th>Problem</th></tr></thead><tbody>
+{% for i in result.record_issues %}<tr><td class="mono">{{ i.item }}</td><td>{{ i.problem }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+<div class="card muted small">
+  <strong>What this proves:</strong> no event was edited, deleted or re-ordered since it was written, and live records still match their last audited snapshot.
+  <strong>What it does not prove:</strong> that someone with raw write access to the database file didn't rebuild the whole chain. Production should periodically anchor the head hash outside the database (WORM storage / ledger). See docs/DECISIONS.md.
+  <br>Checked at {{ result.checked_at[:19].replace('T',' ') }} UTC. This verification run was itself logged.
+</div>
+{% endblock %}

@@ -2,9 +2,47 @@
 {% from "_macros.html" import audit_table %}
 {% block title %}Master Hub{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Good to see you, {{ user.name.split()[0] }}</h1><p class="muted">Signed in as {{ user.role_label }}.</p></div></div>
+{% include "_flash.html" %}
+<div class="page-head"><div><h1>Master Hub desk</h1><p class="muted">Hi {{ user.name.split()[0] }} · {{ user.role_label }} · flagged issues and decisions across the apps your role can open.</p></div></div>
 {% if chain %}
-<div class="verify-banner slim {% if chain.ok %}ok{% else %}bad{% endif %}"><div class="verify-icon">{% if chain.ok %}✓{% else %}✕{% endif %}</div><div>Audit chain {% if chain.ok %}intact · {{ chain.count }} events{% else %}BROKEN: {{ chain.reason }}{% endif %} · <a href="/audit/verify">details</a></div></div>
+<div class="verify-banner slim {% if chain.ok %}ok{% else %}bad{% endif %}"><div class="verify-icon">{% if chain.ok %}✓{% else %}✕{% endif %}</div><div>Audit chain {% if chain.ok %}intact · {{ chain.count }} events · all records match their audit trail{% else %}BROKEN: {{ chain.reason or 'record integrity issues' }}{% endif %} · <a href="/audit/verify">details</a></div></div>
 {% endif %}
+
+{% if tiles %}
+<div class="grid-3 desk-tiles">
+{% for t in tiles %}
+  <a class="card tile kpi {% if t.mine or t.votes %}alert{% elif t.hot %}warn{% else %}good{% endif %}" href="/apps/{{ t.m.key }}?open=1">
+    <span class="kpi-label">{{ t.m.icon }} {{ t.m.title }}</span>
+    <span class="kpi-value">{{ t.open }} <small class="muted">open</small></span>
+    <span class="kpi-sub">{{ t.hot }} flagged · {{ t.pending }} awaiting 2nd approval{% if t.mine %} · <strong>{{ t.mine }} need your approval</strong>{% endif %}{% if t.votes %} · <strong>{{ t.votes }} need your vote</strong>{% endif %}</span>
+  </a>
+{% endfor %}
+</div>
+{% else %}
+<div class="card muted">Your role has no queue apps. Ask an admin to check your group mapping in the identity provider.</div>
+{% endif %}
+
+{% if approvals %}
+<div class="card table-card" id="approvals"><h3>Needs your approval ({{ approvals|length }}) <span class="muted small">· four-eyes: you never see your own proposals here</span></h3>
+<table class="table"><thead><tr><th>App</th><th>Item</th><th>Decision</th><th>Proposed by</th><th>Proposed</th></tr></thead><tbody>
+{% for a in approvals %}<tr><td class="nowrap">{{ a.m.icon }} {{ a.m.title }}</td><td><a class="mono" href="/apps/{{ a.m.key }}/{{ a.d.item_id }}">{{ a.d.item_id }}</a> · {{ a.title }}</td><td><span class="badge badge-amber">{{ a.m.transition(a.d.transition).label }}</span></td><td>{{ a.d.proposed_by_name }}</td><td class="mono small nowrap">{{ a.d.proposed_at[:16].replace('T',' ') }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+
+{% if tiles %}
+<div class="card table-card" id="flagged"><h3>Top flagged issues</h3>
+<table class="table"><thead><tr><th>Score</th><th>App</th><th>Item</th><th>Signals</th><th>State</th><th>Owner</th><th>Updated</th></tr></thead><tbody>
+{% for f in flagged %}<tr>
+  <td>{{ fmt(f.m.field(f.m.priority_field), f.item.priority) if f.m.priority_field else f.item.priority }}</td>
+  <td class="nowrap">{{ f.m.icon }} {{ f.m.title }}</td>
+  <td><a class="mono" href="/apps/{{ f.m.key }}/{{ f.item.id }}">{{ f.item.id }}</a> · {{ f.item.data.get(f.m.title_field, '') }}</td>
+  <td>{% for r in f.reasons %}{% if f.item.data.get(r.name) %}{{ fmt(r, f.item.data.get(r.name)) }} {% endif %}{% endfor %}</td>
+  <td><span class="badge badge-{{ f.m.states[f.item.state].color }}">{{ f.m.states[f.item.state].label }}</span></td>
+  <td class="small">{{ 'assigned' if f.item.assignee else 'unassigned' }}</td>
+  <td class="mono small nowrap">{{ f.item.updated_at[:16].replace('T',' ') }}</td>
+</tr>{% else %}<tr><td colspan="7" class="muted">Nothing flagged right now.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+
 {% if recent %}<div class="card table-card"><h3>Recent activity</h3>{{ audit_table(recent, compact=True) }}</div>{% endif %}
 {% endblock %}

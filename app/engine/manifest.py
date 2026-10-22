@@ -107,6 +107,7 @@ class Manifest:
     quick_filters: tuple[dict, ...] = ()
     order: int = 100
     voting: VotingDef | None = None
+    desk: dict = field(default_factory=dict)  # {min_priority, reason_fields}: what the hub desk shows as flagged
 
     def field(self, name: str) -> FieldDef:
         for f in self.fields:
@@ -230,6 +231,10 @@ def parse_manifest(raw: dict) -> Manifest:
     perms = raw.get("permissions", {})
     title_field = raw.get("title_field", fields[0].name)
     priority_field = raw.get("priority_field")
+    desk = dict(raw.get("desk") or {})
+    for ref in desk.get("reason_fields", []):
+        if ref not in names:
+            raise ManifestError(f"{key}.desk: field {ref} not declared")
     for ref in (title_field, priority_field):
         if ref and ref not in names:
             raise ManifestError(f"{key}: field {ref} not declared")
@@ -243,7 +248,7 @@ def parse_manifest(raw: dict) -> Manifest:
         create_roles=_roles(perms.get("create"), f"{key}.create"),
         export_roles=_roles(perms.get("export"), f"{key}.export"),
         title_field=title_field, priority_field=priority_field,
-        quick_filters=tuple(raw.get("quick_filters", ())), order=int(raw.get("order", 100)), voting=voting,
+        quick_filters=tuple(raw.get("quick_filters", ())), order=int(raw.get("order", 100)), voting=voting, desk=desk,
     )
 
 

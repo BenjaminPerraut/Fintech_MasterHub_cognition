@@ -12,7 +12,12 @@ the session**; copy them from the Devin Session Insights page into the table bel
 | 1. Foundation | [#1](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/1) | 20:58 → 21:01 | _fill in_ | SSO stub, RBAC, hash-chained audit, triggers, security headers, 19 tests |
 | 2. Queue engine + KYC | [#2](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/2) | 21:01 → 21:04 | _fill in_ | YAML manifest engine, four-eyes (service + DB trigger), record hashes, PII masking/reveal, export, 48 KYC cases, 41 tests total |
 | 3. Refunds + Feature flags | [#3](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/3) | 21:04 → 21:06 | _fill in_ | Conditional four-eyes (≥ €500), payout step, voting with quorum, rollout via four-eyes, kill switch, 63 refunds + 14 flags, 60 tests total |
-| 4. Fraud payments + Transfer flags | #4 | 21:06 → see PR | _fill in_ | Rules engine over append-only ledger, 2 alert queues, four-eyes closure, Ops Lead scan/simulate, 73 tests total |
+| 4. Fraud payments + Transfer flags | [#4](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/4) | 21:06 → 21:08 | _fill in_ | Rules engine over append-only ledger, 2 alert queues, four-eyes closure, Ops Lead scan/simulate, 73 tests total |
+| 5. Hub desk + new-app skill + docs | #5 | 21:08 → 21:11 | _fill in_ | Cross-app desk (RBAC-filtered, four-eyes-aware), `.devin/skills/new-internal-app`, final docs, 79 tests total |
+
+**Total so far:** about 15 minutes of VM wall-clock time from plan to the last PR (20:56 → 21:11 UTC on the VM clock).
+That is Devin's machine time only. It excludes your review time and the time sessions spent waiting for you, and it is
+the number least worth trusting: use the **ACUs from Session Insights** as the real cost figure.
 
 ## Corrections, steering, rewrites
 
@@ -28,10 +33,19 @@ the session**; copy them from the Devin Session Insights page into the table bel
 | 8 | 3 | Test asserted pretty-printed JSON, but audit details are canonical (compact) JSON | Devin (test run) | Assert on parsed JSON |
 | 9 | 4 | "Relative" high-amount rule (10x median) alone would flag ordinary €300 purchases | Devin (design, before code) | Added `min_amount_eur: 1000` floor to the rule |
 | 10 | 4 | Considered a separate `rule_hits` table for dedupe; its insert couldn't share the alert's transaction | Devin (design) | Simplified: `rule_key` stored on the alert itself (D-029) |
+| 11 | 5 | Desk test assumed engineer Erin still had flags to vote on, but the seed has her voting on (or authoring) all of them | Devin (test run) | Asserted the vote prompt for the admin instead; the seed was right, the test was wrong |
 
 ## Places Devin got stuck / needed steering
 
-_None so far._
+No human steering was needed after the plan was approved (one approval message, zero corrections from the user).
+Honest friction points on Devin's side:
+
+- **Context window:** the conversation was summarized once (between Phase 2 and 3), and the context limit was extended once in
+  Phase 4 so the rules engine stayed in view while writing its tests. No work was lost, but re-reading files cost time.
+- **No browser check yet:** pages were verified by rendering every list, detail page and quick filter for every role through the
+  test client (all HTTP 200, no template errors). A human or the testing agent still hasn't clicked through the UI.
+- **Stacked PRs:** each PR is based on the previous phase's branch. Merge them in order (#1 → #5) and retarget each one to
+  `main` after its parent merges.
 
 ## Features cut or simplified under the 2-hour limit
 
@@ -46,4 +60,5 @@ See also `docs/DECISIONS.md`.
 - Break-glass access for engineers → not built (D-019).
 - Real payout to a PSP → state change only (D-026).
 - Streaming detection, ML scoring, device/IP signals → batch static rules (D-027, D-028).
+- Desk counts computed per request, with no caching and no notifications (email/Slack) for pending approvals.
 - Gradual rollout percentages other than 10/100 and flag evaluation SDK → not built (D-024).

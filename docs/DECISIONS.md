@@ -1,0 +1,17 @@
+# Decisions
+
+Short, dated decision records. When a choice was made under the 2-hour budget, the
+trade-off is written down here instead of being discussed live.
+
+| ID | Decision | Why | Trade-off / what prod would do |
+|----|----------|-----|--------------------------------|
+| D-001 | **FastAPI + Jinja2 server-rendered HTML + SQLite**, no SPA, no ORM | No Node on the box; fewest moving parts to audit; every SQL write is visible in `app/` | No offline/realtime UI. Prod: Postgres (same SQL, swap `db.py`), keep server rendering or add HTMX |
+| D-002 | **Stub IdP behind `IdentityProvider`** (`app/auth/provider.py`) | Real Entra/Okta needs tenant + secrets we don't have | Stub accepts any seeded subject without a password. Must never be enabled outside sandbox. See `docs/SSO.md` |
+| D-003 | **Roles come from IdP group claims, one role per person** | Matches how Entra/Okta groups work; holding two roles is how people approve their own work | A user who legitimately needs two hats needs two accounts. Login with conflicting groups is refused and audited (`max.dual` demo account) |
+| D-004 | **Hash-chained audit log + SQLite triggers blocking UPDATE/DELETE** | Triggers were trivial in SQLite (2 statements). `/audit/verify` recomputes the chain | Tamper-*evident*, not tamper-proof: someone with raw file access can drop triggers and rebuild the whole chain. Prod: Postgres with `REVOKE UPDATE, DELETE` from the app role + periodically anchor the head hash to WORM storage (S3 Object Lock) or a ledger |
+| D-005 | **Business change and its audit event are written in the same transaction** (`BEGIN IMMEDIATE`) | No change without an event, no event without the change; immediate locks keep the chain linear | Single-writer throughput (fine for an internal tool; ~thousands of writes/s on SQLite) |
+| D-006 | **Admin is not a superuser** | Fintech control: IT admins manage people, they don't approve KYC or money movement | Admin must ask an Ops Lead for business actions, by design |
+| D-007 | **DB row is the source of truth on every request** | Deactivating a user or changing a role takes effect on the next click, not at session expiry | One extra indexed query per request |
+| D-008 | **Global CSRF dependency** on the FastAPI app, strict CSP (no inline JS/CSS), `no-store` caching, no `/docs` or `/openapi.json` | Can't forget CSRF on a new route; PII pages must not be cached; less attack surface | JS must live in `/static`. No public API in this POC (would use OAuth2 client credentials + scopes) |
+| D-009 | **Session: signed cookie (itsdangerous), HttpOnly, SameSite=Lax, 8h absolute expiry**, ephemeral key if `MASTERHUB_SECRET_KEY` unset | No server-side session store needed | Can't revoke one session server-side except via user deactivation (D-007 covers the important case) |
+| D-010 | **Access denials are audited** (`access.denied`) | Probing for permissions is a signal a fintech wants to see | Audit log grows with noise from misclicks; acceptable |

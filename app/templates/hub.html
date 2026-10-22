@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% from "_macros.html" import audit_table %}
+{% block title %}Master Hub{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Good to see you, {{ user.name.split()[0] }}</h1><p class="muted">Signed in as {{ user.role_label }}.</p></div></div>
+{% if chain %}
+<div class="verify-banner slim {% if chain.ok %}ok{% else %}bad{% endif %}"><div class="verify-icon">{% if chain.ok %}✓{% else %}✕{% endif %}</div><div>Audit chain {% if chain.ok %}intact · {{ chain.count }} events{% else %}BROKEN: {{ chain.reason }}{% endif %} · <a href="/audit/verify">details</a></div></div>
+{% endif %}
+{% if recent %}<div class="card table-card"><h3>Recent activity</h3>{{ audit_table(recent, compact=True) }}</div>{% endif %}
+{% endblock %}

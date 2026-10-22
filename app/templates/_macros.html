@@ -1,0 +1,20 @@
+{% macro short_hash(h) %}<code class="hash" title="{{ h }}">{{ h[:10] }}…</code>{% endmacro %}
+{% macro audit_table(rows, compact=False) %}
+<table class="table">
+  <thead><tr><th>#</th><th>Time (UTC)</th><th>Actor</th><th>Action</th><th>Entity</th>{% if not compact %}<th>Details</th><th>Hash</th>{% endif %}</tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td class="mono">{{ r.id }}</td>
+      <td class="mono nowrap">{{ r.ts[:19].replace('T', ' ') }}</td>
+      <td>{{ r.actor }}<br><small class="muted">{{ ROLE_LABELS.get(r.actor_role, r.actor_role) }}</small></td>
+      <td><span class="action-tag action-{{ r.action.split('.')[0] }}">{{ r.action }}</span></td>
+      <td>{% if r.entity_id %}<span class="mono">{{ r.entity_type }}:{{ r.entity_id }}</span>{% endif %}</td>
+      {% if not compact %}<td class="details"><code>{{ r.details }}</code></td><td>{{ short_hash(r.hash) }}</td>{% endif %}
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted">No events.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}

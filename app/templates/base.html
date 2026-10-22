@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Master Hub{% endblock %} · Northwind Pay</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+{% if user %}
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">N</span><div><strong>Master Hub</strong><small>Northwind Pay</small></div></div>
+    {% set ns = namespace(section="") %}
+    <nav>
+      {% for item in nav %}
+        {% if item.section != ns.section %}{% set ns.section = item.section %}<div class="nav-section">{{ item.section }}</div>{% endif %}
+        <a href="{{ item.href }}" class="nav-link {% if active == item.key %}active{% endif %}"><span class="nav-icon">{{ item.icon }}</span>{{ item.label }}</a>
+      {% endfor %}
+    </nav>
+    <div class="sidebar-foot">Every action is recorded in a hash-chained audit log.</div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="env-badge">{{ env_label }}</div>
+      <div class="topbar-right">
+        <div class="who"><span class="avatar">{{ user.initials }}</span><div><strong>{{ user.name }}</strong><small>{{ user.email }}</small></div></div>
+        <span class="role-badge role-{{ user.role }}">{{ user.role_label }}</span>
+        <form method="post" action="/logout">{{ csrf_input(request) }}<button class="btn btn-ghost btn-sm" type="submit">Sign out</button></form>
+      </div>
+    </header>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% else %}
+  {% block public %}{% endblock %}
+{% endif %}
+</body>
+</html>

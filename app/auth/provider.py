@@ -6,8 +6,14 @@ two methods with OIDC (authorization-code + PKCE) – see docs/SSO.md.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
+import os
+import secrets
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import lru_cache
 
 from starlette.requests import Request
 
@@ -60,22 +66,65 @@ STUB_DIRECTORY: tuple[DirectoryEntry, ...] = (
 )
 
 
+DEFAULT_DEMO_PASSWORD = "Northwind-Demo-2026"
+MAX_FAILURES = 5
+LOCKOUT_SECONDS = 300
+
+
+def _scrypt(password: str, salt: bytes) -> bytes:
+    return hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+
+
+@lru_cache(maxsize=8)
+def _hashed(password: str, emails: tuple[str, ...]) -> dict[str, tuple[bytes, bytes]]:
+    """Per-user salted scrypt hashes, computed once per process. Plaintext is never stored."""
+    out = {}
+    for e in emails:
+        salt = secrets.token_bytes(16)
+        out[e] = (salt, _scrypt(password, salt))
+    return out
+
+
+_DUMMY_SALT = secrets.token_bytes(16)
+
+
 class StubDirectoryProvider(IdentityProvider):
+    """Sandbox-only directory with email + password sign-in (shared demo password, scrypt-hashed).
+
+    Brute force: 5 failures per email lock it for 5 minutes. Real deployments use Entra ID / Okta (MFA at the IdP).
+    """
     key = "stub"
     display_name = "Northwind SSO (stub)"
 
-    def __init__(self, directory: tuple[DirectoryEntry, ...] = STUB_DIRECTORY):
-        self._by_subject = {d.subject: d for d in directory}
+    def __init__(self, directory: tuple[DirectoryEntry, ...] = STUB_DIRECTORY, demo_password: str | None = None):
         self._directory = directory
+        self._by_email = {d.email.lower(): d for d in directory}
+        password = demo_password or os.environ.get("MASTERHUB_DEMO_PASSWORD") or DEFAULT_DEMO_PASSWORD
+        self._show_password = password == DEFAULT_DEMO_PASSWORD
+        self._hashes = _hashed(password, tuple(sorted(self._by_email)))
+        self._failures: dict[str, tuple[int, float]] = {}
 
     def login_context(self) -> dict:
-        return {"accounts": self._directory, "provider": self.display_name, "stub": True}
+        return {"accounts": self._directory, "provider": self.display_name, "stub": True,
+                "demo_password": DEFAULT_DEMO_PASSWORD if self._show_password else None}
 
     async def authenticate(self, request: Request) -> Identity:
         form = await request.form()
-        entry = self._by_subject.get(str(form.get("subject", "")))
-        if entry is None:
-            raise AuthenticationError("unknown account")
+        email = str(form.get("email", "")).strip().lower()[:200]
+        password = str(form.get("password", ""))[:200]
+        now = time.time()
+        count, since = self._failures.get(email, (0, now))
+        if now - since >= LOCKOUT_SECONDS:
+            count, since = 0, now
+        if count >= MAX_FAILURES:
+            raise AuthenticationError("too many failed attempts for this account; try again in 5 minutes")
+        salt, expected = self._hashes.get(email, (_DUMMY_SALT, b""))
+        ok = hmac.compare_digest(_scrypt(password, salt), expected) and email in self._by_email
+        if not ok:
+            self._failures[email] = (count + 1, since)
+            raise AuthenticationError("invalid email or password")
+        self._failures.pop(email, None)
+        entry = self._by_email[email]
         return Identity(entry.subject, entry.email, entry.name, entry.groups)
 
 

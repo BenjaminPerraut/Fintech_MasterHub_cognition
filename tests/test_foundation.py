@@ -40,7 +40,8 @@ def test_unknown_account_and_dual_role_are_refused(client, app):
 
 def test_open_redirect_blocked(client):
     token = csrf_from(client)
-    r = client.post("/auth/callback", data={"subject": ALICE, "csrf_token": token, "next": "//evil.example"},
+    r = client.post("/auth/callback", data={"email": "alice.martin@northwindpay.example", "password": "Northwind-Demo-2026", "csrf_token": token,
+                          "next": "//evil.example"},
                     follow_redirects=False)
     assert r.headers["location"] == "/"
 

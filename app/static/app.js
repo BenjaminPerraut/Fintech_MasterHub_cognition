@@ -10,7 +10,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-fill-email]").forEach((b) => {
     b.addEventListener("click", () => {
       const f = document.getElementById("login-email");
-      if (f) { f.value = b.dataset.fillEmail; const pw = document.querySelector('input[name="password"]'); if (pw) pw.focus(); }
+      if (!f) return;
+      f.value = b.dataset.fillEmail;
+      const pw = document.querySelector('input[name="password"]');
+      if (pw && b.dataset.fillPassword) { pw.value = b.dataset.fillPassword; f.form.querySelector('button[type="submit"]').focus(); }
+      else if (pw) { pw.focus(); }
     });
   });
   document.querySelectorAll("form[data-confirm]").forEach((f) => {

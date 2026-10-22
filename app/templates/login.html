@@ -24,7 +24,7 @@
       <summary>Demo accounts{% if idp.demo_password %} · password <code>{{ idp.demo_password }}</code>{% endif %}</summary>
       <div class="account-list">
       {% for acct in idp.accounts %}
-        <button type="button" class="account-btn" data-fill-email="{{ acct.email }}">
+        <button type="button" class="account-btn" data-fill-email="{{ acct.email }}"{% if idp.demo_password %} data-fill-password="{{ idp.demo_password }}"{% endif %}>
           <span class="avatar">{{ acct.name.split()|map('first')|join('') }}</span>
           <span class="account-meta"><strong>{{ acct.name }}</strong><small>{{ acct.email }}</small></span>
           <span class="account-title">{{ acct.title }}</span>

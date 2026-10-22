@@ -32,3 +32,8 @@ def test_login_page_has_password_form_and_theme_toggle(client):
     page = client.get("/login").text
     assert 'type="password"' in page and "data-theme-toggle" in page and "/static/theme.js" in page
     assert 'name="subject"' not in page
+
+
+def test_demo_account_buttons_fill_email_and_password(client):
+    html = client.get("/login").text
+    assert 'data-fill-email="alice.martin@northwindpay.example" data-fill-password="Northwind-Demo-2026"' in html

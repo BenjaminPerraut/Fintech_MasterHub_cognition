@@ -10,7 +10,8 @@ the session**; copy them from the Devin Session Insights page into the table bel
 |-------|----|-------------------------|------------------------------|-------|
 | 0. Plan | – | 20:56 → 20:58 | _fill in_ | Repo was empty; Python 3.10, no Node → server-rendered stack |
 | 1. Foundation | [#1](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/1) | 20:58 → 21:01 | _fill in_ | SSO stub, RBAC, hash-chained audit, triggers, security headers, 19 tests |
-| 2. Queue engine + KYC | #2 | 21:01 → 21:04 | _fill in_ | YAML manifest engine, four-eyes (service + DB trigger), record hashes, PII masking/reveal, export, 48 KYC cases, 41 tests total |
+| 2. Queue engine + KYC | [#2](https://github.com/BenjaminPerraut/Fintech_MasterHub_cognition/pull/2) | 21:01 → 21:04 | _fill in_ | YAML manifest engine, four-eyes (service + DB trigger), record hashes, PII masking/reveal, export, 48 KYC cases, 41 tests total |
+| 3. Refunds + Feature flags | #3 | 21:04 → see PR | _fill in_ | Conditional four-eyes (≥ €500), payout step, voting with quorum, rollout via four-eyes, kill switch, 63 refunds + 14 flags, 60 tests total |
 
 ## Corrections, steering, rewrites
 
@@ -23,6 +24,7 @@ the session**; copy them from the Devin Session Insights page into the table bel
 | 5 | 2 | Templates used an `extract` filter that Jinja doesn't ship (it's an Ansible filter) | Devin (before first run) | Registered a 1-line custom filter |
 | 6 | 2 | Role check ran after comment validation, so an unauthorised user got a 400 instead of an audited 403 | Devin (self-review) | Moved the role check first |
 | 7 | 2 | Seeded "closed" relationships could end before they were submitted | Devin (self-review) | Clamp submitted date before relationship end |
+| 8 | 3 | Test asserted pretty-printed JSON, but audit details are canonical (compact) JSON | Devin (test run) | Assert on parsed JSON |
 
 ## Places Devin got stuck / needed steering
 
@@ -39,3 +41,5 @@ See also `docs/DECISIONS.md`.
 - Retention purge job → filter + documented policy only (D-017).
 - Field-level encryption of PII → masking + audited reveal only (D-016).
 - Break-glass access for engineers → not built (D-019).
+- Real payout to a PSP → state change only (D-026).
+- Gradual rollout percentages other than 10/100 and flag evaluation SDK → not built (D-024).

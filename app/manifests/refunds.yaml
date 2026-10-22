@@ -1,0 +1,92 @@
+# Refunds dashboard. Refunds of EUR 500 or more need an Ops Lead as second approver (four-eyes).
+app: refunds
+title: Refunds
+icon: "↺"
+order: 20
+description: Customer refund requests. Refunds of €500 or more need an Ops Lead as second approver; payouts are executed by Ops Leads only.
+id_prefix: RF
+title_field: customer_name
+priority_field: refund_risk
+initial: requested
+
+permissions:
+  view: [support, ops_lead]
+  create: [support, ops_lead]
+  comment: [support, ops_lead]
+  reveal_pii: [support, ops_lead]
+  export: [ops_lead]
+
+states:
+  requested:      {label: Requested, color: blue}
+  in_review:      {label: In review, color: purple}
+  info_requested: {label: Waiting on customer, color: amber}
+  escalated:      {label: Escalated, color: red}
+  approved:       {label: Approved (awaiting payout), color: cyan}
+  paid:           {label: Paid, color: green, terminal: true}
+  denied:         {label: Denied, color: gray, terminal: true}
+
+transitions:
+  - {name: start_review, label: Start review, from: [requested, info_requested], to: in_review, roles: [support, ops_lead]}
+  - {name: request_info, label: Ask customer for info, from: in_review, to: info_requested, roles: [support, ops_lead], require_comment: true, style: warn}
+  - {name: escalate, label: Escalate to Ops Lead, from: in_review, to: escalated, roles: [support], require_comment: true, style: danger}
+  - name: approve
+    label: Approve refund
+    from: [in_review, escalated]
+    to: approved
+    roles: [support, ops_lead]
+    four_eyes_if: {field: amount, gte: 500}
+    approve_roles: [ops_lead]
+    style: ok
+  - {name: deny, label: Deny refund, from: [in_review, escalated], to: denied, roles: [support, ops_lead], require_comment: true, style: danger}
+  - {name: execute_payout, label: Execute payout, from: approved, to: paid, roles: [ops_lead], style: ok}
+
+quick_filters:
+  - {label: "High value ≥ €500 (open)", params: {f_amount_min: "500", open: "1"}}
+  - {label: SLA breached, params: {f_sla_due_to: "@today-1", open: "1"}}
+  - {label: Unauthorized-transaction claims, params: {f_reason: unauthorized_transaction}}
+  - {label: Repeat refunders (3+ in 90d), params: {f_prior_refunds_90d_min: "3"}}
+  - {label: Ready for payout, params: {state: approved}}
+  - {label: Awaiting 2nd approval, params: {pending: "1"}}
+
+fields:
+  - {name: customer_name, label: Customer, section: Customer, list: true, input: true, required: true}
+  - {name: customer_id, label: Customer ID, section: Customer, input: true, required: true}
+  - {name: customer_email, label: Email, pii: true, section: Customer, input: true}
+  - {name: iban, label: Refund IBAN, pii: true, section: Customer, input: true}
+  - {name: customer_tenure_months, label: Tenure (months), type: number, section: Customer}
+  - name: kyc_status
+    label: KYC status
+    type: enum
+    options: [verified, pending, failed]
+    colors: {verified: green, pending: amber, failed: red}
+    section: Customer
+    filter: true
+  - {name: transaction_id, label: Transaction, section: Transaction, input: true, required: true}
+  - {name: merchant, label: Merchant, section: Transaction, list: true, input: true, filter: true}
+  - {name: amount, label: Amount (EUR), type: money, section: Transaction, list: true, input: true, required: true, filter: true}
+  - {name: payment_method, label: Payment method, type: enum, options: [card, sepa_transfer, instant_transfer, wallet], section: Transaction, input: true, filter: true}
+  - {name: transaction_date, label: Transaction date, type: date, section: Transaction, input: true}
+  - name: reason
+    label: Reason
+    type: enum
+    options: [duplicate_charge, item_not_received, unauthorized_transaction, service_not_as_described, subscription_cancelled, wrong_amount, goodwill]
+    colors: {unauthorized_transaction: red, duplicate_charge: amber, goodwill: purple}
+    section: Request
+    list: true
+    input: true
+    required: true
+    filter: true
+  - {name: channel, label: Channel, type: enum, options: [app, web, chat, phone, email], section: Request, input: true, filter: true}
+  - {name: requested_at, label: Requested, type: date, section: Request, list: true, filter: true, default: "@today"}
+  - {name: sla_due, label: SLA due, type: date, section: Request, filter: true, default: "@today+5", help: 5 days to resolve (internal SLA).}
+  - {name: notes, label: Customer statement, type: longtext, section: Request, input: true}
+  - {name: prior_refunds_90d, label: Refunds in last 90 days, type: number, section: Risk signals, filter: true, default: "0"}
+  - name: risk_flag
+    label: Risk flag
+    type: enum
+    options: [none, repeat_refunder, chargeback_history, new_account, high_value]
+    colors: {none: gray, repeat_refunder: amber, chargeback_history: red, new_account: amber, high_value: purple}
+    section: Risk signals
+    filter: true
+    list: true
+  - {name: refund_risk, label: Refund risk, type: score, section: Risk signals, list: true}

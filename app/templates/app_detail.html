@@ -41,6 +41,21 @@
   </div>
   {% endif %}
 
+  {% if m.voting %}
+  <div class="card vote-card">
+    <h3>Votes <span class="muted small">· quorum {{ m.voting.quorum }} · ▲ {{ tally.up }} / ▼ {{ tally.down }}</span></h3>
+    <meter min="0" max="{{ m.voting.quorum }}" low="{{ m.voting.quorum - 0.5 }}" optimum="{{ m.voting.quorum }}" value="{{ [tally.up, m.voting.quorum]|min }}"></meter>
+    {% if quorum_met %}<p><span class="badge badge-green">✓ Quorum reached</span></p>{% else %}<p class="small muted">Needs {{ m.voting.quorum }} up votes from people other than the proposer, and more up than down.</p>{% endif %}
+    <ul class="timeline">{% for v in votes %}<li><span class="badge badge-{{ 'green' if v.vote == 'up' else 'red' }}">{{ '▲ up' if v.vote == 'up' else '▼ down' }}</span> <strong>{{ v.voter_name }}</strong> · {{ ROLE_LABELS.get(v.voter_role, v.voter_role) }} · {{ v.ts[:16].replace('T',' ') }}{% if v.comment %}<div class="small muted">“{{ v.comment }}”</div>{% endif %}</li>{% else %}<li class="muted small">No votes yet.</li>{% endfor %}</ul>
+    {% if can_vote %}
+    <form method="post" action="/apps/{{ m.key }}/{{ item.id }}/vote">{{ csrf_input(request) }}
+      <textarea name="comment" maxlength="4000" placeholder="Reason (required for a down vote). Votes are final."></textarea>
+      <div class="actions"><button class="btn btn-ok" name="vote" value="up">▲ Vote up</button><button class="btn btn-danger" name="vote" value="down">▼ Vote down</button></div>
+    </form>
+    {% elif vote_block %}<div class="alert alert-info">{{ vote_block }}</div>{% endif %}
+  </div>
+  {% endif %}
+
   {% if acts.transitions %}
   <div class="card">
     <h3>Actions</h3>
@@ -50,7 +65,8 @@
       <label class="small muted">Comment / justification <span>(required for four-eyes and flagged actions)</span><textarea name="comment" maxlength="4000" placeholder="Why? This goes into the audit trail."></textarea></label>
       <div class="actions">
       {% for t in acts.transitions %}
-        <button class="btn {% if t.style %}btn-{{ t.style }}{% endif %}" formaction="/apps/{{ m.key }}/{{ item.id }}/transition/{{ t.name }}">{{ t.label }}{% if t.four_eyes %} <span class="fe" title="Requires a second person">4👁</span>{% endif %}</button>
+        {% set blocked = t.requires_quorum and not quorum_met %}
+      <button class="btn {% if t.style %}btn-{{ t.style }}{% endif %}" formaction="/apps/{{ m.key }}/{{ item.id }}/transition/{{ t.name }}" {% if blocked %}disabled title="Quorum not reached"{% endif %}>{{ t.label }}{% if t.needs_four_eyes(item.data) %} <span class="fe" title="Requires a second person">4👁</span>{% endif %}{% if blocked %} (needs quorum){% endif %}</button>
       {% endfor %}
       </div>
     </form>

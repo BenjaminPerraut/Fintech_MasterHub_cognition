@@ -56,7 +56,7 @@ class SecurityHeadersMiddleware:
                     b"content-security-policy": CSP.encode(),
                     b"x-content-type-options": b"nosniff",
                     b"x-frame-options": b"DENY",
-                    b"referrer-policy": b"no-referrer",
+                    b"referrer-policy": b"same-origin",  # no-referrer makes browsers send "Origin: null" on form POSTs
                     b"permissions-policy": b"camera=(), microphone=(), geolocation=(), payment=()",
                     b"cross-origin-opener-policy": b"same-origin",
                     b"cross-origin-resource-policy": b"same-origin",
